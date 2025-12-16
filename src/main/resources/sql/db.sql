@@ -20,3 +20,13 @@ create table user_role
     PRIMARY KEY (user_id, role),
     FOREIGN KEY (user_id) REFERENCES user (id)
 )
+
+CREATE TABLE refresh_tokens
+(
+    user_id    BIGINT PRIMARY KEY,
+    token_hash VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMP    NOT NULL,
+    revoked    BOOLEAN   DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    revoked_at TIMESTAMP
+);

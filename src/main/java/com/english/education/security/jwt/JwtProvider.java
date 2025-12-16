@@ -22,8 +22,8 @@ public class JwtProvider {
     @Value("${jwt.expiration}")
     private long expired;
 
-    public String generateToken(UserDetailCustom userDetailCustom) {
-        return Jwts.builder().setSubject(userDetailCustom.getUsername())
+    public String generateToken(String username) {
+        return Jwts.builder().setSubject(username)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(new Date().getTime() + expired))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
