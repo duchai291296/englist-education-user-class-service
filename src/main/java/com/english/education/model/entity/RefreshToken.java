@@ -3,6 +3,7 @@ package com.english.education.model.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,15 +16,25 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @Getter
 @Setter
+@Table(name = "refresh_tokens")
 public class RefreshToken {
     @Id
+    @Column(name = "user_id")
     private Integer userId;
 
-    @Column(nullable = false)
+    @Column(name = "token_hash")
     private String tokenHash;
 
+    @Column(name = "expires_at")
     private LocalDateTime expiresAt;
+
+    @Column(name = "revoked")
     private boolean revoked;
+
+    @Column(name = "revoked_at")
     private LocalDateTime revokedAt;
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
 
 }

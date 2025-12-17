@@ -1,5 +1,7 @@
 package com.english.education.controller;
 
+import com.english.education.exception.AuthenException;
+import com.english.education.model.dto.request.LoginRequest;
 import com.english.education.model.dto.request.RegisterRequest;
 import com.english.education.model.service.AuthService;
 import jakarta.validation.Valid;
@@ -18,5 +20,10 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest registerRequest) {
         return authService.register(registerRequest);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) throws AuthenException {
+        return authService.login(loginRequest);
     }
 }

@@ -4,5 +4,5 @@ import com.english.education.model.entity.RefreshToken;
 import com.english.education.model.entity.User;
 
 public interface RefreshTokenService {
-    RefreshToken generateRefreshToken(User user);
+    String generateRefreshToken(User user);
 }

@@ -1,7 +1,6 @@
 package com.english.education.security.jwt;
 
 
-import com.english.education.security.principle.UserDetailCustom;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
@@ -22,8 +21,10 @@ public class JwtProvider {
     @Value("${jwt.expiration}")
     private long expired;
 
-    public String generateToken(String username) {
-        return Jwts.builder().setSubject(username)
+    public String generateToken(String username, String tokenVer) {
+        return Jwts.builder()
+                .setSubject(username)
+                .claim("tv",tokenVer)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(new Date().getTime() + expired))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)

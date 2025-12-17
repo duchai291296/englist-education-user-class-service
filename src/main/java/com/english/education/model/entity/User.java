@@ -14,6 +14,7 @@ import java.util.Set;
 @Getter
 @Setter
 @Builder
+@Table(name = "users")
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -46,6 +47,9 @@ public class User {
     @Column(name = "role")
     @Enumerated(EnumType.STRING)
     private Set<RoleName> roles;
+
+    @Column(name = "token_version")
+    private Integer tokenVersion;
 
     @Column(name = "created_at", updatable = false, insertable = false)
     private LocalDateTime createdAt;

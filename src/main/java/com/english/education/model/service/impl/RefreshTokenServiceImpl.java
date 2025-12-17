@@ -20,7 +20,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     private final RefreshTokenRepository refreshTokenRepository;
 
     @Override
-    public RefreshToken generateRefreshToken(User user) {
+    public String generateRefreshToken(User user) {
         String newRaw = UUID.randomUUID().toString();
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setUserId(user.getId());
@@ -29,7 +29,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         refreshToken.setExpiresAt(LocalDateTime.now().plusDays(14));
 
         refreshTokenRepository.save(refreshToken);
-        return refreshToken;
+        return newRaw;
     }
 
     private String hashToken(String rawToken) {
