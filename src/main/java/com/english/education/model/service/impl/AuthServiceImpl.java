@@ -1,5 +1,6 @@
 package com.english.education.model.service.impl;
 
+import com.english.education.constant.Constants;
 import com.english.education.constant.MessageConstant;
 import com.english.education.event.UserCreatedEvent;
 import com.english.education.exception.AuthenException;
@@ -12,6 +13,7 @@ import com.english.education.model.entity.User;
 import com.english.education.model.enums.Status;
 import com.english.education.model.repository.UserRepository;
 import com.english.education.model.service.AuthService;
+import com.english.education.model.service.AuthStateService;
 import com.english.education.model.service.RefreshTokenService;
 import com.english.education.security.jwt.JwtProvider;
 import jakarta.transaction.Transactional;
@@ -54,8 +56,8 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final JwtProvider jwtProvider;
     private final RefreshTokenService refreshTokenService;
-    private final StringRedisTemplate stringRedisTemplate;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final AuthStateService authStateService;
 
     /**
      * Register a new user account.
@@ -138,11 +140,11 @@ public class AuthServiceImpl implements AuthService {
         User user = verify(loginRequest);
 
         // Redis authentication keys
-        String tokenVerKey = "token_ver:" + user.getId();
-        String lockedKey = "user_locked:" + user.getId();
+        String tokenVerKey = Constants.TOKEN_VER_KEY + user.getId();
+        String lockedKey = Constants.USER_LOCKED_KEY + user.getId();
 
         // Validate authentication state from Redis
-        String tokenVer = validateAuthState(tokenVerKey, lockedKey, user);
+        String tokenVer = authStateService.validateAuthState(tokenVerKey, lockedKey, user);
 
         // Generate JWT access token
         String accessToken = jwtProvider.generateToken(user.getUsername(), tokenVer);
@@ -173,10 +175,6 @@ public class AuthServiceImpl implements AuthService {
      * @author Duc Hai (17/12/2025)
      */
     private Set<RoleName> toRoleNames(Set<String> roles) {
-        if (roles == null || roles.isEmpty()) {
-            return Set.of();
-        }
-
         return roles.stream()
                 .map(String::trim)
                 .map(String::toUpperCase)
@@ -213,54 +211,15 @@ public class AuthServiceImpl implements AuthService {
             throw new AuthenException(MessageConstant.INVALID_USER_NAME_OR_PASSWORD, "password");
         }
 
-        return user;
-    }
-
-    /**
-     * Validate authentication state from Redis cache.
-     * <p>
-     * Rules:
-     * - Both token version and lock status must exist
-     * - User must not be locked
-     * <p>
-     * This method is READ-ONLY.
-     * It never rebuilds or modifies Redis state.
-     * <p>
-     * If Redis data is missing or inconsistent, the request fails fast
-     * to prevent incorrect authentication state.
-     *
-     * @param tokenVerKey Redis key storing token version
-     * @param lockedKey   Redis key storing user lock status
-     * @param user        authenticated user
-     * @return token version
-     * @throws AuthenException if auth state is invalid or user is locked
-     * @author Duc Hai (17/12/2025)
-     */
-    private String validateAuthState(String tokenVerKey, String lockedKey, User user) throws AuthenException {
-
-        ValueOperations<String, String> ops = stringRedisTemplate.opsForValue();
-
-        String tokenVer = ops.get(tokenVerKey);
-        String locked = ops.get(lockedKey);
-
-        // Redis cache not ready or just restarted
-        if (tokenVer == null || locked == null) {
-            log.warn("Auth cache missing for userId={}", user.getId());
-            throw new AuthenException(
-                    MessageConstant.AUTH_TRY_AGAIN_LATER,
-                    "system"
-            );
-        }
-
-        // User has been locked by admin
-        if (Status.INACTIVE.name().equals(locked)) {
+        // Check locked user
+        if(user.getStatus() == Status.INACTIVE) {
             throw new AuthenException(
                     MessageConstant.USER_IS_LOCKED,
                     "username"
             );
         }
 
-        return tokenVer;
-
+        return user;
     }
+
 }

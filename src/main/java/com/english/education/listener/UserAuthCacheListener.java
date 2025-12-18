@@ -23,7 +23,6 @@ public class UserAuthCacheListener {
                 "token_ver:" + event.userId(),
                 "1"
         );
-
         ops.set(
                 "user_locked:" + event.userId(),
                 Status.ACTIVE.name()
