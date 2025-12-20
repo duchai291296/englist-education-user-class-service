@@ -1,6 +1,8 @@
 package com.english.education.security.jwt;
 
 
+import com.english.education.exception.AuthenException;
+import com.english.education.model.enums.RoleName;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +12,8 @@ import org.springframework.stereotype.Component;
 import java.security.Key;
 import java.util.Base64;
 import java.util.Date;
+import java.util.List;
+import java.util.Set;
 
 @Component
 @Slf4j
@@ -21,10 +25,18 @@ public class JwtProvider {
     @Value("${jwt.expiration}")
     private long expired;
 
-    public String generateToken(String username, String tokenVer) {
+    public String generateToken(String username, Integer tokenVer, Integer userId, String device, Set<RoleName> userRole) {
+
+        List<String> roles = userRole.stream()
+                .map(Enum::name)
+                .toList();
+
         return Jwts.builder()
                 .setSubject(username)
-                .claim("tv",tokenVer)
+                .claim("userId", userId)
+                .claim("device", device)
+                .claim("tokenVer",tokenVer)
+                .claim("userRole",roles)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(new Date().getTime() + expired))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
@@ -68,6 +80,14 @@ public class JwtProvider {
                 .parseClaimsJws(token)
                 .getBody()
                 .getSubject();
+    }
+
+    public Claims parse(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
     }
 
     private Key getSigningKey() {

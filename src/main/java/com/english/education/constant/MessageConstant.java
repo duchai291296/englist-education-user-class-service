@@ -15,8 +15,12 @@ public class MessageConstant {
     public static final String USER_NAME_CANNOT_BE_NULL = "User name can not be null";
     public static final String PASSWORD_CANNOT_BE_NULL = "Password can not be null";
     public static final String FULL_NAME_CANNOT_BE_NULL = "Full name can not be null";
+    public static final String DEVICE_TYPE_CANNOT_BE_NULL = "Device type can not be null";
+    public static final String INVALID_DEVICE_TYPE = "Invalid device type";
     public static final String ROLE_CANNOT_BE_NULL = "Role can not be null";
     public static final String ROLE_CANNOT_BE_EMPTY = "Role can not be empty";
+    public static final String BACK_TO_LOGIN = "Back to login";
+    public static final String INVALID_TOKEN_VER = "Invalid token ver";
 
 
     // User
@@ -27,5 +31,7 @@ public class MessageConstant {
 
     // Token
     public static final String INVALID_REFRESH_TOKEN_FORMAT = "Invalid refresh token format";
+    public static final String INVALID_ACCESS_TOKEN = "Invalid access token";
     public static final String REFRESH_TOKEN_NOT_FOUND = "Refresh token not found";
+    public static final String REFRESH_TOKEN_CANNOT_BE_NULL = "Refresh token can not be null";
 }

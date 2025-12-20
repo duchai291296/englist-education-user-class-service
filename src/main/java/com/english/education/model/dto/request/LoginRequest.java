@@ -16,4 +16,6 @@ public class LoginRequest {
     private String username;
     @NotBlank(message = MessageConstant.PASSWORD_CANNOT_BE_NULL)
     private String password;
+    @NotBlank(message = MessageConstant.DEVICE_TYPE_CANNOT_BE_NULL)
+    private String deviceType;
 }

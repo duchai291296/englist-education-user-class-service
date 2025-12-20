@@ -1,14 +1,12 @@
-package com.english.education.model.service.impl;
+package com.english.education.model.service.users;
 
 import com.english.education.constant.MessageConstant;
 import com.english.education.model.entity.User;
 import com.english.education.model.repository.UserRepository;
-import com.english.education.model.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.NoSuchElementException;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor

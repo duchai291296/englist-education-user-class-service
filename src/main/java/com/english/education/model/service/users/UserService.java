@@ -1,4 +1,4 @@
-package com.english.education.model.service;
+package com.english.education.model.service.users;
 
 import com.english.education.model.entity.User;
 

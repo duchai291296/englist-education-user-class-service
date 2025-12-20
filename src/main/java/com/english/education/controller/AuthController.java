@@ -1,9 +1,10 @@
 package com.english.education.controller;
 
 import com.english.education.exception.AuthenException;
+import com.english.education.exception.CustomException;
 import com.english.education.model.dto.request.LoginRequest;
 import com.english.education.model.dto.request.RegisterRequest;
-import com.english.education.model.service.AuthService;
+import com.english.education.model.service.auth.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -23,7 +24,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) throws AuthenException {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) throws AuthenException, CustomException {
         return authService.login(loginRequest);
     }
 }

@@ -20,10 +20,6 @@ public class UserAuthCacheListener {
         ValueOperations<String, String> ops = redisTemplate.opsForValue();
 
         ops.set(
-                "token_ver:" + event.userId(),
-                "1"
-        );
-        ops.set(
                 "user_locked:" + event.userId(),
                 Status.ACTIVE.name()
         );

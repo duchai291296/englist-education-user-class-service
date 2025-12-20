@@ -1,9 +1,10 @@
-package com.english.education.model.service.impl;
+package com.english.education.model.service.auth;
 
 import com.english.education.constant.Constants;
 import com.english.education.constant.MessageConstant;
 import com.english.education.event.UserCreatedEvent;
 import com.english.education.exception.AuthenException;
+import com.english.education.exception.CustomException;
 import com.english.education.model.dto.request.LoginRequest;
 import com.english.education.model.dto.response.JwtResponse;
 import com.english.education.model.enums.RoleName;
@@ -12,21 +13,23 @@ import com.english.education.model.dto.request.RegisterRequest;
 import com.english.education.model.entity.User;
 import com.english.education.model.enums.Status;
 import com.english.education.model.repository.UserRepository;
-import com.english.education.model.service.AuthService;
-import com.english.education.model.service.AuthStateService;
-import com.english.education.model.service.RefreshTokenService;
+import com.english.education.model.service.authstate.AuthStateService;
+import com.english.education.model.service.common.CommonServiceImpl;
+import com.english.education.model.service.refreshtoken.RefreshTokenService;
 import com.english.education.security.jwt.JwtProvider;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -58,6 +61,8 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenService refreshTokenService;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final AuthStateService authStateService;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final CommonServiceImpl commonServiceImpl;
 
     /**
      * Register a new user account.
@@ -131,25 +136,21 @@ public class AuthServiceImpl implements AuthService {
      * @param loginRequest login payload
      * @return JWT response
      * @throws AuthenException if authentication fails
+     * @throws CustomException if verify fail
      * @author Duc Hai (17/12/2025)
      */
     @Override
-    public ResponseEntity<?> login(LoginRequest loginRequest) throws AuthenException {
+    public ResponseEntity<?> login(LoginRequest loginRequest) throws AuthenException, CustomException {
 
         // Verify username and password using DB
         User user = verify(loginRequest);
 
-        // Redis authentication keys
-        String tokenVerKey = Constants.TOKEN_VER_KEY + user.getId();
-        String lockedKey = Constants.USER_LOCKED_KEY + user.getId();
-
-        // Validate authentication state from Redis
-        String tokenVer = authStateService.validateAuthState(tokenVerKey, lockedKey, user);
+        user.setTokenVersion(user.getTokenVersion() + 1);
 
         // Generate JWT access token
-        String accessToken = jwtProvider.generateToken(user.getUsername(), tokenVer);
+        String accessToken = jwtProvider.generateToken(user.getUsername(), user.getTokenVersion(), user.getId(), loginRequest.getDeviceType(), user.getRoles());
         // Generate refresh token
-        String refreshToken = refreshTokenService.generateRefreshToken(user);
+        String refreshToken = refreshTokenService.generateRefreshToken(user, loginRequest.getDeviceType());
 
         // Build response
         JwtResponse jwtResponse = JwtResponse.builder()
@@ -197,10 +198,15 @@ public class AuthServiceImpl implements AuthService {
      *
      * @param loginRequest login payload
      * @return authenticated user entity
-     * @throws AuthenException if credentials are invalid
+     * @throws CustomException if device type is invalid
      * @author Duc Hai (17/12/2025)
      */
-    private User verify(LoginRequest loginRequest) throws AuthenException {
+    private User verify(LoginRequest loginRequest) throws CustomException {
+
+        // Check device type
+        if (!Objects.equals(loginRequest.getDeviceType(), Constants.PC) && !Objects.equals(loginRequest.getDeviceType(), Constants.MOBILE)) {
+            throw new CustomException(MessageConstant.INVALID_DEVICE_TYPE, HttpStatus.BAD_REQUEST);
+        }
 
         // Fetch user that is not soft-deleted
         User user = userRepository.findByUsernameAndDeletedAtIsNull(loginRequest.getUsername())
@@ -208,18 +214,20 @@ public class AuthServiceImpl implements AuthService {
 
         // Validate password
         if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
-            throw new AuthenException(MessageConstant.INVALID_USER_NAME_OR_PASSWORD, "password");
+            throw new CustomException(MessageConstant.INVALID_USER_NAME_OR_PASSWORD, HttpStatus.BAD_REQUEST);
         }
 
         // Check locked user
-        if(user.getStatus() == Status.INACTIVE) {
-            throw new AuthenException(
+        if (user.getStatus() == Status.INACTIVE) {
+            throw new CustomException(
                     MessageConstant.USER_IS_LOCKED,
-                    "username"
+                    HttpStatus.BAD_REQUEST
             );
         }
 
         return user;
     }
+
+
 
 }
