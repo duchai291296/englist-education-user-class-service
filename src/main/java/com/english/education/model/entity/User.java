@@ -48,9 +48,6 @@ public class User {
     @Enumerated(EnumType.STRING)
     private Set<RoleName> roles;
 
-    @Column(name = "token_version")
-    private Integer tokenVersion;
-
     @Column(name = "created_at", updatable = false, insertable = false)
     private LocalDateTime createdAt;
 

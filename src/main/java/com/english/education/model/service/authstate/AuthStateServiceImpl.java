@@ -3,7 +3,6 @@ package com.english.education.model.service.authstate;
 import com.english.education.constant.MessageConstant;
 import com.english.education.exception.AuthenException;
 import com.english.education.model.dto.response.ValidRequestResponse;
-import com.english.education.model.entity.User;
 import com.english.education.model.enums.Status;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
@@ -27,16 +26,16 @@ public class AuthStateServiceImpl implements AuthStateService {
      * - Both token version and lock status must exist
      * - User must not be locked
      * <p>
-     * This method is READ-ONLY.
-     * It never rebuilds or modifies Redis state.
+     * This method is READ-ONLY with respect to Redis state.
+     * It does not rebuild, mutate, or initialize Redis data.
      * <p>
      * If Redis data is missing or inconsistent, the request fails fast
      * to prevent incorrect authentication state.
      * <p>
      * Circuit Breaker:
      * - Wrapped with @CircuitBreaker(name = "redisAuth", fallbackMethod = "redisAuthFallback")
-     * - If Redis is unreachable or takes too long, the fallback method is called
-     *   to prevent system-wide failure.
+     * - If Redis access throws runtime exceptions (connection failure, timeout),
+     *   the circuit breaker triggers the fallback method.
      *
      * @param validRequestResponse dto have info of redis
      * @throws AuthenException if auth state is invalid or user is locked or cannot connect to redis
@@ -119,6 +118,20 @@ public class AuthStateServiceImpl implements AuthStateService {
         );
     }
 
+    /**
+     * Parse token version from Redis.
+     * <p>
+     * - Returns {@code null} if value is missing
+     * - Throws exception if value is invalid
+     * <p>
+     * Invalid format indicates corrupted Redis state
+     * and must be rejected immediately.
+     *
+     * @param value token version string from Redis
+     * @return parsed token version or {@code null}
+     * @throws AuthenException if value is not a valid number
+     * @author Duc Hai (17/12/2025)
+     */
     private Long parseLongOrThrow(String value) {
         try {
             return value != null ? Long.valueOf(value) : null;

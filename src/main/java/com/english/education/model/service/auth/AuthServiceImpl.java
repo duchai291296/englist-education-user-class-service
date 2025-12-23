@@ -7,13 +7,14 @@ import com.english.education.exception.AuthenException;
 import com.english.education.exception.CustomException;
 import com.english.education.model.dto.request.LoginRequest;
 import com.english.education.model.dto.response.JwtResponse;
+import com.english.education.model.entity.UserSession;
 import com.english.education.model.enums.RoleName;
 import com.english.education.exception.DataExistException;
 import com.english.education.model.dto.request.RegisterRequest;
 import com.english.education.model.entity.User;
 import com.english.education.model.enums.Status;
-import com.english.education.model.repository.UserRepository;
-import com.english.education.model.service.authstate.AuthStateService;
+import com.english.education.model.repository.user.UserRepository;
+import com.english.education.model.repository.usersession.UserSessionRepository;
 import com.english.education.model.service.common.CommonServiceImpl;
 import com.english.education.model.service.refreshtoken.RefreshTokenService;
 import com.english.education.security.jwt.JwtProvider;
@@ -21,7 +22,6 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -33,23 +33,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * Authentication service implementation.
- * <p>
- * Responsibilities:
- * - Register new users
- * - Authenticate users
- * - Generate JWT access & refresh tokens
- * - Validate authentication state using Redis cache
- * <p>
- * Design decisions:
- * - Database is the source of truth
- * - Redis is used as authentication cache only
- * - Login flow NEVER rebuilds Redis state
- * - Redis is updated only after successful DB commit
- *
- * @author Duc Hai (17/12/2025)
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -60,9 +43,9 @@ public class AuthServiceImpl implements AuthService {
     private final JwtProvider jwtProvider;
     private final RefreshTokenService refreshTokenService;
     private final ApplicationEventPublisher applicationEventPublisher;
-    private final AuthStateService authStateService;
     private final StringRedisTemplate stringRedisTemplate;
     private final CommonServiceImpl commonServiceImpl;
+    private final UserSessionRepository userSessionRepository;
 
     /**
      * Register a new user account.
@@ -100,7 +83,6 @@ public class AuthServiceImpl implements AuthService {
                 .phone(registerRequest.getPhone())
                 .email(registerRequest.getEmail())
                 .fullName(registerRequest.getFullName())
-                .tokenVersion(1)
                 .status(Status.ACTIVE)
                 .roles(roleNames)
                 .build();
@@ -126,12 +108,13 @@ public class AuthServiceImpl implements AuthService {
      * <p>
      * Flow:
      * 1. Verify username and password
-     * 2. Validate authentication state from Redis
+     * 2. Atomically increment token version in Redis
      * 3. Generate access token and refresh token
      * <p>
      * Important:
-     * - Login NEVER modifies Redis
-     * - If Redis state is missing or inconsistent, login fails fast
+     * - Login updates Redis token version atomically
+     * - Redis is the single source of truth for token version
+     * - If Redis is unavailable, login fails fast
      *
      * @param loginRequest login payload
      * @return JWT response
@@ -145,12 +128,41 @@ public class AuthServiceImpl implements AuthService {
         // Verify username and password using DB
         User user = verify(loginRequest);
 
-        user.setTokenVersion(user.getTokenVersion() + 1);
-
-        // Generate JWT access token
-        String accessToken = jwtProvider.generateToken(user.getUsername(), user.getTokenVersion(), user.getId(), loginRequest.getDeviceType(), user.getRoles());
         // Generate refresh token
         String refreshToken = refreshTokenService.generateRefreshToken(user, loginRequest.getDeviceType());
+
+        // Atomically upsert (insert or update) user session and increment token version in one query
+        // This prevents race conditions when multiple concurrent login requests occur
+        // - If session exists: increment token_version
+        // - If session doesn't exist: create with token_version = 1
+        userSessionRepository.upsertAndIncrementTokenVersion(
+                user.getId(),
+                loginRequest.getDeviceType(),
+                user.getStatus().name()
+        );
+
+        // Get updated session from DB to retrieve new token version
+        // clearAutomatically ensures we get fresh data from DB
+        UserSession session = userSessionRepository.findByUserIdAndDeviceType(
+                user.getId(),
+                loginRequest.getDeviceType()
+        ).orElseThrow(() -> new RuntimeException("Session not found after upsert"));
+
+        Long tokenVer = session.getTokenVersion();
+
+        // Try to update Redis cache (non-blocking, if available)
+        try {
+            String key = commonServiceImpl.getTokenVerDevice(loginRequest.getDeviceType(), user.getId());
+            stringRedisTemplate.opsForValue().set(key, String.valueOf(tokenVer));
+            String lockedKey = Constants.USER_LOCKED_KEY + user.getId();
+            stringRedisTemplate.opsForValue().set(lockedKey, user.getStatus().name());
+        } catch (Exception e) {
+            log.warn("Failed to update Redis cache during login (userId={}), continuing with DB", user.getId(), e);
+            // Continue with login even if Redis fails
+        }
+
+        // Generate JWT access token
+        String accessToken = jwtProvider.generateToken(user.getUsername(), tokenVer, user.getId(), loginRequest.getDeviceType(), user.getRoles());
 
         // Build response
         JwtResponse jwtResponse = JwtResponse.builder()
@@ -193,8 +205,10 @@ public class AuthServiceImpl implements AuthService {
      * Verify user credentials.
      * <p>
      * Checks:
-     * - User exists and not deleted
+     * - Device type is valid
+     * - User exists and not soft-deleted
      * - Password matches
+     * - User is not locked
      *
      * @param loginRequest login payload
      * @return authenticated user entity
@@ -228,6 +242,24 @@ public class AuthServiceImpl implements AuthService {
         return user;
     }
 
+    @Transactional
+    @Override
+    public ResponseEntity<?> logout(String deviceType, Integer userId) {
+        // 1. Revoke refresh token in DB
+        refreshTokenService.revokeActiveTokenByUserAndDevice(userId, deviceType);
 
+        // 2. Increment token version in DB (source of truth) to invalidate access token
+        userSessionRepository.incrementTokenVersion(userId, deviceType);
 
+        // 3. Try to update Redis cache (non-blocking, if available)
+        try {
+            String key = commonServiceImpl.getTokenVerDevice(deviceType, userId);
+            stringRedisTemplate.opsForValue().increment(key);
+        } catch (Exception e) {
+            log.warn("Failed to update Redis cache during logout (userId={}), continuing with DB", userId, e);
+            // Continue with logout even if Redis fails
+        }
+
+        return ResponseEntity.ok().body(MessageConstant.LOGOUT_SUCCESS);
+    }
 }

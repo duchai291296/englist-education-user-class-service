@@ -15,8 +15,16 @@ import java.time.LocalDateTime;
 @Setter
 @Table(name = "refresh_tokens")
 public class RefreshToken {
-    @EmbeddedId
-    private RefreshTokenId id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "user_id", nullable = false)
+    private Integer userId;
+
+    @Column(name = "device_type", nullable = false)
+    private String deviceType;
 
     @Column(name = "token_hash")
     private String tokenHash;

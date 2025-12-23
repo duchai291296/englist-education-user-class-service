@@ -1,34 +1,28 @@
 package com.english.education.security.principle;
 
-import com.english.education.model.entity.User;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
-import java.util.stream.Collectors;
 
-@NoArgsConstructor
+
 @AllArgsConstructor
 @Getter
-@Setter
 public class UserDetailCustom implements UserDetails {
-    private User user;
+    private final Integer userId;
+    private final String username;
+    private final String deviceType;
+    private final Collection<? extends GrantedAuthority> authorities;
 
     @Override
-    public @NonNull Collection<? extends GrantedAuthority> getAuthorities() {
-        return user.getRoles().stream().map(roles -> new SimpleGrantedAuthority(roles.name())).collect(Collectors.toSet());
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return authorities;
     }
 
     @Override
     public String getPassword() {
-        return user.getPassword();
-    }
-
-    @Override
-    public @NonNull String getUsername() {
-        return user.getUsername();
+        return null;
     }
 
     @Override

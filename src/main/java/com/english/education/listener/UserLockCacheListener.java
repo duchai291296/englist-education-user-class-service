@@ -1,7 +1,6 @@
 package com.english.education.listener;
 
-import com.english.education.constant.Constants;
-import com.english.education.event.UserCreatedEvent;
+import com.english.education.event.UserLockEvent;
 import com.english.education.model.enums.Status;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -12,17 +11,18 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 @Component
 @RequiredArgsConstructor
-public class UserAuthCacheListener {
-    private final StringRedisTemplate redisTemplate;
+public class UserLockCacheListener {
+    private final StringRedisTemplate stringRedisTemplate;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void onUserCreated(UserCreatedEvent event) {
-
-        ValueOperations<String, String> ops = redisTemplate.opsForValue();
-
+    public void onUserLocked(UserLockEvent event) {
+        ValueOperations<String, String> ops = stringRedisTemplate.opsForValue();
         ops.set(
-                Constants.USER_LOCKED_KEY + event.userId(),
-                Status.ACTIVE.name()
+                event.lockedKey(),
+                Status.INACTIVE.name()
         );
+
+        stringRedisTemplate.opsForValue().increment(event.tokenVerKeyPC());
+        stringRedisTemplate.opsForValue().increment(event.tokenVerKeyMobile());
     }
 }

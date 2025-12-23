@@ -25,7 +25,7 @@ public class JwtProvider {
     @Value("${jwt.expiration}")
     private long expired;
 
-    public String generateToken(String username, Integer tokenVer, Integer userId, String device, Set<RoleName> userRole) {
+    public String generateToken(String username, Long tokenVer, Integer userId, String device, Set<RoleName> userRole) {
 
         List<String> roles = userRole.stream()
                 .map(Enum::name)
@@ -94,5 +94,10 @@ public class JwtProvider {
         return Keys.hmacShaKeyFor(
                 Base64.getDecoder().decode(secretKey)
         );
+    }
+
+    public Integer getUserIdFromToken(String token) {
+        Claims claims = parse(token);
+        return claims.get("userId", Integer.class);
     }
 }

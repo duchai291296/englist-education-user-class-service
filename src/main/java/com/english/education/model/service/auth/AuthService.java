@@ -9,4 +9,5 @@ import org.springframework.http.ResponseEntity;
 public interface AuthService {
     ResponseEntity<?> register(RegisterRequest registerRequest);
     ResponseEntity<?> login(LoginRequest loginRequest) throws AuthenException, CustomException;
+    ResponseEntity<?> logout(String deviceType, Integer userId);
 }
