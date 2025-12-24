@@ -12,6 +12,7 @@ public class MessageConstant {
 
     // Authentication
     public static final String USER_NAME_CANNOT_BE_NULL = "User name can not be null";
+    public static final String USER_ID_CANNOT_BE_NULL = "User id can not be null";
     public static final String PASSWORD_CANNOT_BE_NULL = "Password can not be null";
     public static final String FULL_NAME_CANNOT_BE_NULL = "Full name can not be null";
     public static final String DEVICE_TYPE_CANNOT_BE_NULL = "Device type can not be null";
@@ -29,7 +30,9 @@ public class MessageConstant {
     public static final String INVALID_USER_NAME_OR_PASSWORD = "Invalid user name or password";
     public static final String LOGOUT_SUCCESS = "Logout success";
     public static final String USER_ALREADY_LOCKED = "User already locked";
+    public static final String USER_ALREADY_UNLOCKED = "User already unlocked";
     public static final String USER_LOCKED_SUCCESS = "User locked success";
+    public static final String USER_UNLOCKED_SUCCESS = "User unlocked success";
 
     // Token
     public static final String INVALID_REFRESH_TOKEN_FORMAT = "Invalid refresh token format";

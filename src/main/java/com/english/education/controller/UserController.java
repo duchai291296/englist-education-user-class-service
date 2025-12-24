@@ -1,10 +1,10 @@
 package com.english.education.controller;
 
+import com.english.education.model.dto.request.LockAndUnlockRequest;
 import com.english.education.model.service.users.UserService;
-import com.english.education.security.principle.UserDetailCustom;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -16,7 +16,12 @@ public class UserController {
     private final UserService userService;
 
     @PutMapping("/lockUser")
-    public ResponseEntity<?> lockUser(@AuthenticationPrincipal UserDetailCustom userDetailCustom) {
-        return userService.lockUser(userDetailCustom.getUserId());
+    public ResponseEntity<?> lockUser(@Valid @RequestBody LockAndUnlockRequest lockAndUnlockRequest) {
+        return userService.lockUser(lockAndUnlockRequest.getUserId());
+    }
+
+    @PutMapping("/unlockUser")
+    public ResponseEntity<?> unlockUser(@Valid @RequestBody LockAndUnlockRequest lockAndUnlockRequest) {
+        return userService.unlockUser(lockAndUnlockRequest.getUserId());
     }
 }

@@ -9,9 +9,9 @@ import lombok.Setter;
 
 @Getter
 @Setter
-@AllArgsConstructor
 @NoArgsConstructor
-public class LogoutRequest {
-    @NotNull(message = MessageConstant.DEVICE_TYPE_CANNOT_BE_NULL)
-    private String deviceType;
+@AllArgsConstructor
+public class LockAndUnlockRequest {
+    @NotNull(message = MessageConstant.USER_ID_CANNOT_BE_NULL)
+    private Integer userId;
 }

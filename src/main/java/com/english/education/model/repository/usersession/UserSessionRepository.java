@@ -1,6 +1,7 @@
 package com.english.education.model.repository.usersession;
 
 import com.english.education.model.entity.UserSession;
+import com.english.education.model.enums.Status;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -71,11 +72,21 @@ public interface UserSessionRepository extends JpaRepository<UserSession, Long> 
      * @param userId user identifier
      * @param status new status
      */
-    @Modifying(clearAutomatically = true)
+    @Modifying
     @Query("""
         UPDATE UserSession us
         SET us.status = :status
         WHERE us.userId = :userId
     """)
-    void updateStatusByUserId(@Param("userId") Integer userId, @Param("status") com.english.education.model.enums.Status status);
+    void updateStatusByUserId(@Param("userId") Integer userId, @Param("status") Status status);
+
+    @Modifying
+    @Query("""
+        UPDATE UserSession us
+        SET us.tokenVersion = us.tokenVersion + 1,
+            us.lastLogin = CURRENT_TIMESTAMP
+        WHERE us.userId = :userId
+    """)
+    int incrementTokenVersionByUserId(@Param("userId") Integer userId);
+
 }

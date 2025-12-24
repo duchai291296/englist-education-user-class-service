@@ -9,6 +9,8 @@ public interface UserService {
 
     ResponseEntity<?> lockUser(Integer userId);
 
+    ResponseEntity<?> unlockUser(Integer userId);
+
     boolean existsByUsername(String username);
 
     User findByUsername(String username);
