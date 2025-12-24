@@ -123,6 +123,7 @@ public class AuthServiceImpl implements AuthService {
      * @author Duc Hai (17/12/2025)
      */
     @Override
+    @Transactional
     public ResponseEntity<?> login(LoginRequest loginRequest) throws AuthenException, CustomException {
 
         // Verify username and password using DB
@@ -154,8 +155,6 @@ public class AuthServiceImpl implements AuthService {
         try {
             String key = commonServiceImpl.getTokenVerDevice(loginRequest.getDeviceType(), user.getId());
             stringRedisTemplate.opsForValue().set(key, String.valueOf(tokenVer));
-            String lockedKey = Constants.USER_LOCKED_KEY + user.getId();
-            stringRedisTemplate.opsForValue().set(lockedKey, user.getStatus().name());
         } catch (Exception e) {
             log.warn("Failed to update Redis cache during login (userId={}), continuing with DB", user.getId(), e);
             // Continue with login even if Redis fails
@@ -253,8 +252,8 @@ public class AuthServiceImpl implements AuthService {
 
         // 3. Try to update Redis cache (non-blocking, if available)
         try {
-            String key = commonServiceImpl.getTokenVerDevice(deviceType, userId);
-            stringRedisTemplate.opsForValue().increment(key);
+            String redisKey = commonServiceImpl.getTokenVerDevice(deviceType, userId);
+            stringRedisTemplate.delete(redisKey);
         } catch (Exception e) {
             log.warn("Failed to update Redis cache during logout (userId={}), continuing with DB", userId, e);
             // Continue with logout even if Redis fails
