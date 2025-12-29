@@ -1,5 +1,6 @@
 package com.english.education.model.service.refreshtoken;
 
+import com.english.education.annotation.LogAction;
 import com.english.education.constant.MessageConstant;
 import com.english.education.exception.CustomException;
 import com.english.education.model.dto.request.NewRefreshTokenRequest;
@@ -12,6 +13,7 @@ import com.english.education.model.service.users.UserService;
 import com.english.education.security.jwt.JwtProvider;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.http.HttpStatus;
@@ -24,6 +26,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RefreshTokenServiceImpl implements RefreshTokenService {
@@ -103,6 +106,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
      */
     @Transactional
     @Override
+    @LogAction("USER_GET_NEW_ACCESS_TOKEN")
     public ResponseEntity<?> getNewAccessToken(NewRefreshTokenRequest newRefreshTokenRequest) throws CustomException {
         try {
             ValueOperations<String, String> ops = stringRedisTemplate.opsForValue();
@@ -161,6 +165,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                     .refreshToken(newRefreshToken)
                     .build();
 
+            log.info("Get new refresh token");
             return ResponseEntity.ok().body(jwtResponse);
         } catch (IllegalArgumentException e) {
             // Invalid UUID format

@@ -3,6 +3,7 @@ package com.english.education.security.config;
 import com.english.education.security.exception.AccessDenied;
 import com.english.education.security.exception.JwtEntryPoint;
 import com.english.education.security.jwt.JwtTokenFilter;
+import com.english.education.security.jwt.TraceIdFilter;
 import com.english.education.security.principle.UserDetailCustomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -20,6 +21,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.web.cors.CorsConfiguration;
 
 import java.util.List;
@@ -33,6 +35,7 @@ public class SecurityConfig {
     private final AccessDenied accessDenied;
     private final JwtEntryPoint jwtEntryPoint;
     private final JwtTokenFilter jwtTokenFilter;
+    private final TraceIdFilter traceIdFilter;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -65,7 +68,8 @@ public class SecurityConfig {
                         .anyRequest().permitAll())
                 .authenticationProvider(authenticationProvider())
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(jwtEntryPoint).accessDeniedHandler(accessDenied))
-                .addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(traceIdFilter, SecurityContextHolderFilter.class)
+                .addFilterAfter(jwtTokenFilter, TraceIdFilter.class)
                 .build();
     }
 

@@ -175,6 +175,7 @@ public class AuthServiceImpl implements AuthService {
                 .status(user.getStatus())
                 .refreshToken(refreshToken)
                 .build();
+        log.info("Login Success");
         return ResponseEntity.ok().body(jwtResponse);
     }
 

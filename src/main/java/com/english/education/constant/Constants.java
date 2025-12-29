@@ -11,5 +11,7 @@ public class Constants {
     public static final String USER_LOCKED_KEY = "user_locked:";
     public static final String PC = "PC";
     public static final String MOBILE = "MOBILE";
+    public static final String TRACE_ID_HEADER = "X-Trace-Id";
+    public static final String TRACE_ID = "traceId";
 
 }

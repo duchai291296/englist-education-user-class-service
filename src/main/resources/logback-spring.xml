@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- ================== VARIABLES ================== -->
+    <property name="LOG_PATH" value="logs"/>
+    <property name="APP_NAME" value="backend-service"/>
+
+    <!-- Compact pattern for INFO / WARN logs -->
+    <property name="PATTERN_INFO"
+              value="%d{HH:mm:ss} %-5level - [%X{traceId} %X{userId}] %msg%n"/>
+
+    <!-- Detailed pattern for ERROR logs (includes thread info) -->
+    <property name="PATTERN_ERROR"
+              value="%d{HH:mm:ss.SSS} %-5level [%thread] - [%X{traceId} %X{userId}] %msg%n"/>
+
+    <!-- ================== CONSOLE ================== -->
+    <!-- Console uses INFO pattern for better readability -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${PATTERN_INFO}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ================== INFO + WARN FILE ================== -->
+    <appender name="INFO_WARN_FILE"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+
+        <file>${LOG_PATH}/${APP_NAME}.log</file>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_PATH}/${APP_NAME}.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+
+        <encoder>
+            <pattern>${PATTERN_INFO}</pattern>
+        </encoder>
+
+        <!-- Block ERROR logs from this file -->
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>ERROR</level>
+            <onMatch>DENY</onMatch>
+            <onMismatch>NEUTRAL</onMismatch>
+        </filter>
+    </appender>
+
+    <!-- ================== ERROR FILE ================== -->
+    <appender name="ERROR_FILE"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+
+        <file>${LOG_PATH}/${APP_NAME}-error.log</file>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_PATH}/${APP_NAME}-error.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>60</maxHistory>
+        </rollingPolicy>
+
+        <encoder>
+            <pattern>${PATTERN_ERROR}</pattern>
+        </encoder>
+
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>ERROR</level>
+        </filter>
+    </appender>
+
+    <!-- ================== REDUCE FRAMEWORK LOGGING ================== -->
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="org.hibernate" level="WARN"/>
+
+    <!-- ================== ROOT LOGGER ================== -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="INFO_WARN_FILE"/>
+        <appender-ref ref="ERROR_FILE"/>
+    </root>
+
+</configuration>
