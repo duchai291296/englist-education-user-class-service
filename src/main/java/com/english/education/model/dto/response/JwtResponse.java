@@ -22,4 +22,5 @@ public class JwtResponse {
     private String phone;
     private Status status;
     private Set<RoleName> roles;
+    private String avatar;
 }

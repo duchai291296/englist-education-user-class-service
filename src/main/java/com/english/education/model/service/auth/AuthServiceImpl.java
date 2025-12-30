@@ -15,7 +15,8 @@ import com.english.education.model.entity.User;
 import com.english.education.model.enums.Status;
 import com.english.education.model.repository.user.UserRepository;
 import com.english.education.model.repository.usersession.UserSessionRepository;
-import com.english.education.model.service.common.CommonServiceImpl;
+import com.english.education.model.service.cloudinary.CloudinaryService;
+import com.english.education.model.service.common.CommonService;
 import com.english.education.model.service.refreshtoken.RefreshTokenService;
 import com.english.education.security.jwt.JwtProvider;
 import jakarta.transaction.Transactional;
@@ -44,8 +45,9 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenService refreshTokenService;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final StringRedisTemplate stringRedisTemplate;
-    private final CommonServiceImpl commonServiceImpl;
+    private final CommonService commonService;
     private final UserSessionRepository userSessionRepository;
+    private final CloudinaryService cloudinaryService;
 
     /**
      * Register a new user account.
@@ -66,7 +68,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Transactional
     @Override
-    public ResponseEntity<?> register(RegisterRequest registerRequest) {
+    public ResponseEntity<?> register(RegisterRequest registerRequest) throws CustomException {
 
         // Check if username already exists
         if (userRepository.existsByUsername(registerRequest.getUsername())) {
@@ -87,7 +89,24 @@ public class AuthServiceImpl implements AuthService {
                 .roles(roleNames)
                 .build();
         // Persist user to database
-        userRepository.save(user);
+        user = userRepository.save(user);
+
+        String uploadedPublicId = null;
+
+        try{
+            if (registerRequest.getImage() != null && !registerRequest.getImage().isEmpty()) {
+                String publicId = Constants.AVATAR + Constants.SLASH + user.getId() + Constants.SLASH + commonService.getFileName(registerRequest.getImage());
+                uploadedPublicId = cloudinaryService.uploadPublicImageWithPrefix(registerRequest.getImage(), publicId);
+                user.setAvatar(uploadedPublicId);
+                userRepository.save(user);
+            }
+        }catch (Exception e){
+            if (uploadedPublicId != null) {
+                cloudinaryService.deleteImage(uploadedPublicId);
+            }
+            throw e;
+        }
+
 
         // Publish event to initialize authentication cache.
         // Listener will:
@@ -149,11 +168,14 @@ public class AuthServiceImpl implements AuthService {
                 loginRequest.getDeviceType()
         ).orElseThrow(() -> new RuntimeException("Session not found after upsert"));
 
+        String avatar = cloudinaryService.getPublicImageUrl(user.getAvatar());
+        log.info("Avatar URL = {}", avatar);
+
         Long tokenVer = session.getTokenVersion();
 
         // Try to update Redis cache (non-blocking, if available)
         try {
-            String key = commonServiceImpl.getTokenVerDevice(loginRequest.getDeviceType(), user.getId());
+            String key = commonService.getTokenVerDevice(loginRequest.getDeviceType(), user.getId());
             stringRedisTemplate.opsForValue().set(key, String.valueOf(tokenVer));
         } catch (Exception e) {
             log.warn("Failed to update Redis cache during login (userId={}), continuing with DB", user.getId(), e);
@@ -174,6 +196,7 @@ public class AuthServiceImpl implements AuthService {
                 .roles(user.getRoles())
                 .status(user.getStatus())
                 .refreshToken(refreshToken)
+                .avatar(avatar)
                 .build();
         log.info("Login Success");
         return ResponseEntity.ok().body(jwtResponse);
@@ -253,7 +276,7 @@ public class AuthServiceImpl implements AuthService {
 
         // 3. Try to update Redis cache (non-blocking, if available)
         try {
-            String redisKey = commonServiceImpl.getTokenVerDevice(deviceType, userId);
+            String redisKey = commonService.getTokenVerDevice(deviceType, userId);
             stringRedisTemplate.delete(redisKey);
         } catch (Exception e) {
             log.warn("Failed to update Redis cache during logout (userId={}), continuing with DB", userId, e);

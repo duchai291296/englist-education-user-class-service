@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Set;
 
@@ -27,4 +28,6 @@ public class RegisterRequest {
     @NotNull(message = MessageConstant.ROLE_CANNOT_BE_NULL)
     @NotEmpty(message = MessageConstant.ROLE_CANNOT_BE_EMPTY)
     private Set<String> roles;
+
+    private MultipartFile image;
 }

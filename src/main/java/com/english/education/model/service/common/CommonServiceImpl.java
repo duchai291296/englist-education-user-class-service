@@ -5,11 +5,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class CommonServiceImpl {
+public class CommonServiceImpl implements CommonService {
 
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -24,6 +25,7 @@ public class CommonServiceImpl {
      * @return Redis key for token version
      * @author Duc Hai (17/12/2025)
      */
+    @Override
     public String getTokenVerDevice(String deviceType, Integer userId) {
         if (deviceType.equals(Constants.PC)) {
             return Constants.TOKEN_VER_PC + userId;
@@ -32,6 +34,7 @@ public class CommonServiceImpl {
         }
     }
 
+    @Override
     public Long getTokenVersionFromRedis(String key) {
         try {
             String val = stringRedisTemplate.opsForValue().get(key);
@@ -40,5 +43,24 @@ public class CommonServiceImpl {
             log.warn("Redis unavailable, fallback DB");
             return null;
         }
+    }
+
+    @Override
+    public String getFileName(MultipartFile file) {
+        if (file == null) {
+            return null;
+        }
+
+        String original = file.getOriginalFilename();
+        if (original == null || original.isBlank()) {
+            return null;
+        }
+
+        int dotIndex = original.lastIndexOf('.');
+        if (dotIndex > 0) {
+            return original.substring(0, dotIndex);
+        }
+
+        return original;
     }
 }

@@ -7,7 +7,7 @@ import com.english.education.model.dto.request.RegisterRequest;
 import org.springframework.http.ResponseEntity;
 
 public interface AuthService {
-    ResponseEntity<?> register(RegisterRequest registerRequest);
+    ResponseEntity<?> register(RegisterRequest registerRequest) throws CustomException;
     ResponseEntity<?> login(LoginRequest loginRequest) throws AuthenException, CustomException;
     ResponseEntity<?> logout(String deviceType, Integer userId);
 }

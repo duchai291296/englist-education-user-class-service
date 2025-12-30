@@ -42,4 +42,13 @@ public class MessageConstant {
     public static final String REFRESH_TOKEN_REVOKED = "Refresh token revoked";
     public static final String REFRESH_TOKEN_EXPIRED = "Refresh token expired";
     public static final String REFRESH_TOKEN_REUSED = "Refresh token reused";
+
+    // Image/Cloudinary
+    public static final String IMAGE_FILE_REQUIRED = "Image file is required";
+    public static final String IMAGE_INVALID_FORMAT = "Invalid image format. Only image files are allowed";
+    public static final String IMAGE_FILE_TOO_LARGE = "Image file is too large. Maximum size is 10MB";
+    public static final String IMAGE_UPLOAD_FAILED = "Failed to upload image";
+    public static final String IMAGE_PUBLIC_ID_REQUIRED = "Image public ID is required";
+    public static final String IMAGE_DELETE_SUCCESS = "Image deleted successfully";
+    public static final String IMAGE_DELETE_FAILED = "Failed to delete image";
 }

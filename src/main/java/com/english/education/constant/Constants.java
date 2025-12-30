@@ -13,5 +13,8 @@ public class Constants {
     public static final String MOBILE = "MOBILE";
     public static final String TRACE_ID_HEADER = "X-Trace-Id";
     public static final String TRACE_ID = "traceId";
+    public static final String AVATAR = "avatar";
+    public static final String SLASH = "/";
+
 
 }

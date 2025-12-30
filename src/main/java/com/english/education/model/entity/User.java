@@ -39,6 +39,9 @@ public class User {
     @Enumerated(EnumType.STRING)
     private Status status;
 
+    @Column(name = "avatar")
+    private String avatar;
+
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(
             name = "user_role",
