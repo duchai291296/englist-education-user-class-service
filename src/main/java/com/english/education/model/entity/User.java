@@ -2,6 +2,7 @@ package com.english.education.model.entity;
 
 import com.english.education.model.enums.RoleName;
 import com.english.education.model.enums.Status;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -23,6 +24,7 @@ public class User {
     @Column(name = "username")
     private String username;
 
+    @JsonIgnore
     @Column(name = "password")
     private String password;
 

@@ -95,7 +95,7 @@ public class AuthServiceImpl implements AuthService {
 
         try{
             if (registerRequest.getImage() != null && !registerRequest.getImage().isEmpty()) {
-                String publicId = Constants.AVATAR + Constants.SLASH + user.getId() + Constants.SLASH + commonService.getFileName(registerRequest.getImage());
+                String publicId = Constants.AVATAR + Constants.SLASH + user.getId() + Constants.SLASH + Constants.AVATAR;
                 uploadedPublicId = cloudinaryService.uploadPublicImageWithPrefix(registerRequest.getImage(), publicId);
                 user.setAvatar(uploadedPublicId);
                 userRepository.save(user);
@@ -169,7 +169,6 @@ public class AuthServiceImpl implements AuthService {
         ).orElseThrow(() -> new RuntimeException("Session not found after upsert"));
 
         String avatar = cloudinaryService.getPublicImageUrl(user.getAvatar());
-        log.info("Avatar URL = {}", avatar);
 
         Long tokenVer = session.getTokenVersion();
 

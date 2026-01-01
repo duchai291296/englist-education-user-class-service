@@ -9,6 +9,7 @@ import java.util.Collection;
 
 @AllArgsConstructor
 @Getter
+@SuppressWarnings("ClassCanBeRecord")
 public class UserDetailCustom implements UserDetails {
     private final Integer userId;
     private final String username;

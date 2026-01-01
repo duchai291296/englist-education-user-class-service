@@ -5,6 +5,7 @@ import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import com.english.education.constant.MessageConstant;
 import com.english.education.exception.CustomException;
+import com.english.education.model.enums.CloudinaryResourceType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -33,10 +34,17 @@ import java.util.Map;
 @Slf4j
 public class CloudinaryServiceImpl implements CloudinaryService {
 
+    // Cloudinary API parameter keys
     private static final String PUBLIC_ID = "public_id";
     private static final String RESOURCE_TYPE = "resource_type";
     private static final String IMAGE = "image";
+    private static final String OVERWRITE = "overwrite";
+    private static final String ACCESS_MODE = "access_mode";
+    private static final String INVALIDATE = "invalidate";
+    private static final String AUTHENTICATED = "authenticated";
+    private static final String PUBLIC = "public";
 
+    // Cloudinary client instance (injected via constructor)
     private final Cloudinary cloudinary;
 
     /**
@@ -57,33 +65,9 @@ public class CloudinaryServiceImpl implements CloudinaryService {
      */
     @Override
     public String uploadImageWithPrefix(MultipartFile file, String prefix) throws CustomException {
-        try {
-            validateFile(file);
-
-            Map<String, Object> options = new HashMap<>();
-            options.put(PUBLIC_ID, prefix.trim());
-            options.put(RESOURCE_TYPE, IMAGE);
-            options.put("overwrite", true);
-            options.put("access_mode", "authenticated");
-            options.put("allowed_formats", new String[]{"jpg", "jpeg", "png", "webp"});
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> uploadResult = cloudinary.uploader()
-                    .upload(file.getBytes(), options);
-
-            String publicId = (String) uploadResult.get(PUBLIC_ID);
-            log.info("Image uploaded successfully: publicId={}", publicId);
-            return publicId;
-
-        } catch (CustomException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Cloudinary upload failed", e);
-            throw new CustomException(
-                    MessageConstant.IMAGE_UPLOAD_FAILED,
-                    HttpStatus.INTERNAL_SERVER_ERROR
-            );
-        }
+        // Upload image as authenticated (private) resource
+        // Requires to be signed URL to access
+        return upload(file, prefix, CloudinaryResourceType.IMAGE, AUTHENTICATED);
     }
 
     /**
@@ -98,62 +82,44 @@ public class CloudinaryServiceImpl implements CloudinaryService {
      */
     @Override
     public String uploadPublicImageWithPrefix(MultipartFile file, String prefix) throws CustomException {
-        try {
-            validateFile(file);
-
-            Map<String, Object> options = new HashMap<>();
-            options.put(PUBLIC_ID, prefix.trim());
-            options.put(RESOURCE_TYPE, IMAGE);
-            options.put("overwrite", true);
-            options.put("access_mode", "public");
-            options.put("allowed_formats", new String[]{"jpg", "jpeg", "png", "webp"});
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> uploadResult = cloudinary.uploader()
-                    .upload(file.getBytes(), options);
-
-            String publicId = (String) uploadResult.get(PUBLIC_ID);
-            log.info("Public image uploaded successfully: publicId={}", publicId);
-            return publicId;
-
-        } catch (CustomException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Cloudinary public upload failed", e);
-            throw new CustomException(
-                    MessageConstant.IMAGE_UPLOAD_FAILED,
-                    HttpStatus.INTERNAL_SERVER_ERROR
-            );
-        }
+        // Upload image as public resource
+        // Can be accessed directly via HTTPS URL without authentication
+        return upload(file, prefix, CloudinaryResourceType.IMAGE, PUBLIC);
     }
 
     /**
      * Generate a signed (private) URL for an authenticated image.
      *
-     * @param publicId       the Cloudinary public_id
+     * @param publicId      the Cloudinary public_id
      * @param expireSeconds number of seconds until URL expires
      * @return signed HTTPS URL or null if publicId invalid
      * @author Duc Hai
      */
     @Override
     public String getPrivateUrl(String publicId, int expireSeconds) {
+        // Validate input: publicId must not be null or empty
         if (publicId == null || publicId.isBlank()) {
             return null;
         }
 
+        // Calculate expiration timestamp (current time + expireSeconds)
+        // Convert milliseconds to seconds (Unix timestamp format)
         long expiration = (System.currentTimeMillis() / 1000) + expireSeconds;
 
+        // Create token options with expiration time
         Map<String, Object> tokenOptions = new HashMap<>();
         tokenOptions.put("expiration", expiration);
 
+        // Generate authentication token for signed URL
         AuthToken authToken = new AuthToken(tokenOptions);
 
+        // Build and generate signed HTTPS URL for authenticated image
         return cloudinary.url()
-                .secure(true)
-                .resourceType(IMAGE)
-                .type("authenticated")
-                .authToken(authToken)
-                .generate(publicId.trim());
+                .secure(true)                    // Use HTTPS protocol
+                .resourceType(IMAGE)             // Specify resource type as image
+                .type(AUTHENTICATED)           // Set type to authenticated (private)
+                .authToken(authToken)            // Attach authentication token with expiration
+                .generate(publicId.trim());      // Generate URL for the given public_id
     }
 
     /**
@@ -167,14 +133,15 @@ public class CloudinaryServiceImpl implements CloudinaryService {
      */
     @Override
     public String getPublicImageUrl(String publicId) {
+        // Validate input: publicId must not be null or empty
         if (publicId == null || publicId.isBlank()) {
             return null;
         }
 
+        // Generate public HTTPS URL (no authentication required)
         return cloudinary.url()
                 .secure(true)
                 .resourceType(IMAGE)
-//                .forceVersion(false)
                 .generate(publicId.trim());
     }
 
@@ -189,16 +156,19 @@ public class CloudinaryServiceImpl implements CloudinaryService {
      */
     @Override
     public void deleteImage(String publicId) {
-        try{
+        try {
+            // Delete image from Cloudinary using destroy API
             cloudinary.uploader().destroy(
-                    publicId,
+                    publicId,                    // The public_id of image to delete
                     ObjectUtils.asMap(
-                            RESOURCE_TYPE, IMAGE,
-                            "invalidate", true
+                            RESOURCE_TYPE, IMAGE,  // Specify resource type as image
+                            INVALIDATE, true       // Invalidate CDN cache after deletion
                     )
             );
             log.info("Cloudinary image deleted: {}", publicId);
-        }catch (Exception e){
+        } catch (Exception e) {
+            // Log error but don't throw exception
+            // This allows deletion to fail silently (useful for compensation actions)
             log.error("Cloudinary delete image failed", e);
         }
     }
@@ -216,19 +186,70 @@ public class CloudinaryServiceImpl implements CloudinaryService {
      * @author Duc Hai
      */
     private void validateFile(MultipartFile file) throws CustomException {
+        // Validation 1: Check if file is null or empty
         if (file == null || file.isEmpty()) {
             throw new CustomException(MessageConstant.IMAGE_FILE_REQUIRED, HttpStatus.BAD_REQUEST);
         }
 
+        // Validation 2: Check content type must be an image
+        // Valid types: image/jpeg, image/png, image/gif, etc.
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
             throw new CustomException(MessageConstant.IMAGE_INVALID_FORMAT, HttpStatus.BAD_REQUEST);
         }
 
-        // Check file size (10MB limit)
-        long maxSize = 10L * 1024 * 1024; // 10MB
+        // Validation 3: Check file size limit (10MB = 10 * 1024 * 1024 bytes)
+        long maxSize = 10L * 1024 * 1024; // 10MB in bytes
         if (file.getSize() > maxSize) {
             throw new CustomException(MessageConstant.IMAGE_FILE_TOO_LARGE, HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    /**
+     * Core upload method that handles image upload to Cloudinary.
+     * This is a private helper method used by both public and authenticated upload methods.
+     *
+     * @param file         the image file to upload
+     * @param publicId     the desired public_id (unique identifier in Cloudinary)
+     * @param resourceType type of resource (IMAGE, VIDEO, etc.)
+     * @param accessMode   access mode: "public" or "authenticated"
+     * @return the actual public_id returned by Cloudinary
+     * @throws CustomException if validation or upload fails
+     * @author Duc Hai
+     */
+    private String upload(MultipartFile file, String publicId, CloudinaryResourceType resourceType, String accessMode) throws CustomException {
+        try {
+            // Step 1: Validate the uploaded file (size, type, etc.)
+            validateFile(file);
+
+            // Step 2: Prepare upload options for Cloudinary API
+            Map<String, Object> options = new HashMap<>();
+            options.put(PUBLIC_ID, publicId.trim());
+            options.put(RESOURCE_TYPE, resourceType.value());
+            options.put(OVERWRITE, true);
+            options.put(ACCESS_MODE, accessMode);
+
+            // Step 3: Upload file to Cloudinary
+            // Suppress unchecked warning for Map cast from Cloudinary API
+            @SuppressWarnings("unchecked")
+            Map<String, Object> uploadResult = cloudinary.uploader()
+                    .upload(file.getBytes(), options);             // Convert file to bytes and upload
+
+            // Step 4: Extract public_id from upload result
+            String uploadPublicId = (String) uploadResult.get(PUBLIC_ID);
+            log.info("Image uploaded successfully: publicId={}, accessMode={}", publicId, accessMode);
+            return uploadPublicId;
+
+        } catch (CustomException e) {
+            // Re-throw validation exceptions as-is
+            throw e;
+        } catch (Exception e) {
+            // Catch any other exceptions (network errors, Cloudinary API errors, etc.)
+            log.error("Cloudinary upload failed: publicId={}, accessMode={}", publicId, accessMode, e);
+            throw new CustomException(
+                    MessageConstant.IMAGE_UPLOAD_FAILED,
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
         }
     }
 }
