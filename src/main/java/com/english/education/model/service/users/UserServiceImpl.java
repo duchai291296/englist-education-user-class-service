@@ -1,22 +1,29 @@
 package com.english.education.model.service.users;
 
+import com.english.education.annotation.LogAction;
 import com.english.education.constant.Constants;
 import com.english.education.constant.MessageConstant;
+import com.english.education.exception.CustomException;
+import com.english.education.model.dto.request.user.UpdateUserRequest;
+import com.english.education.model.dto.response.DataResponse;
+import com.english.education.model.dto.response.user.UserDetailResponse;
 import com.english.education.model.entity.User;
+import com.english.education.model.enums.RoleName;
 import com.english.education.model.enums.Status;
 import com.english.education.model.repository.refreshtoken.RefreshTokenRepository;
 import com.english.education.model.repository.user.UserRepository;
 import com.english.education.model.repository.usersession.UserSessionRepository;
+import com.english.education.model.service.cloudinary.CloudinaryService;
+import com.english.education.security.principle.UserDetailCustom;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Set;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +34,7 @@ public class UserServiceImpl implements UserService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserSessionRepository userSessionRepository;
     private final StringRedisTemplate stringRedisTemplate;
+    private final CloudinaryService cloudinaryService;
 
     @Override
     public User findById(Integer id) {
@@ -182,10 +190,115 @@ public class UserServiceImpl implements UserService {
         return ResponseEntity.ok().body(MessageConstant.USER_UNLOCKED_SUCCESS);
     }
 
+    /**
+     * Get user detail by user ID.
+     * <p>
+     * Flow:
+     * 1. Find user by ID (excluding soft-deleted users)
+     * 2. Return user entity as response
+     * <p>
+     * Behavior:
+     * - Only returns users that are not soft-deleted
+     * - Throws exception if user does not exist
+     * <p>
+     * Security:
+     * - Authorization is assumed to be handled at controller / filter level
+     * - This method does NOT perform permission checks
+     * <p>
+     * Notes:
+     * - Sensitive fields should be protected using @JsonIgnore / @JsonIgnoreProperties
+     * - Returned entity must be safe for exposure
+     *
+     * @param userId user ID to retrieve
+     * @return user detail
+     * @throws NoSuchElementException if user not found or user is soft-deleted+
+     * @author Duc Hai
+     */
+    @Override
+    public ResponseEntity<?> detail(Integer userId) {
+        User user = userRepository.findByIdAndDeletedAtIsNull(userId).orElseThrow(() -> new NoSuchElementException(MessageConstant.USER_NOT_FOUND));
+        String avatar = cloudinaryService.getPublicImageUrl(user.getAvatar());
+        UserDetailResponse userDetailResponse = new UserDetailResponse();
+        userDetailResponse.setId(user.getId());
+        userDetailResponse.setUserName(user.getUsername());
+        userDetailResponse.setPhone(user.getPhone());
+        userDetailResponse.setEmail(user.getEmail());
+        userDetailResponse.setRoles(user.getRoles());
+        userDetailResponse.setFullName(user.getFullName());
+        userDetailResponse.setAvatar(avatar);
+        return ResponseEntity.ok().body(new DataResponse<>(200,null, userDetailResponse));
+    }
+
+    /**
+     * Update user information.
+     * <p>
+     * Flow:
+     * 1. Determine whether current user is ADMIN
+     * 2. Verify update permission:
+     * - ADMIN can update any user
+     * - Non-admin can only update their own profile
+     * 3. Find target user (excluding soft-deleted users)
+     * 4. Update basic user information (fullName, email, phone)
+     * 5. If ADMIN:
+     * - Validate roles
+     * - Update user roles
+     * 6. Persist user changes
+     * <p>
+     * Transactional behavior:
+     * - User data update is transactional
+     * - Database changes are rolled back on exception
+     * <p>
+     * Security:
+     * - Non-admin users are forbidden from updating other users
+     * - Only ADMIN users can update roles
+     * - This method rejects invalid role values
+     * <p>
+     * Validation:
+     * - Role list must contain only valid RoleName enum values
+     *
+     * @param request          update user request payload
+     * @param userDetailCustom authenticated user details
+     * @return updated user information
+     * @throws CustomException        if permission denied or invalid role
+     * @throws NoSuchElementException if user not found or soft-deleted
+     */
+    @Transactional
+    @Override
+    @LogAction("UPDATE_USER")
+    public ResponseEntity<?> updateUser(UpdateUserRequest request, UserDetailCustom userDetailCustom) throws CustomException {
+
+        boolean isAdmin = userDetailCustom.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals(RoleName.ADMIN.name()));
+
+        // Authorization check
+        if (!isAdmin && !Objects.equals(request.getUserUpdateId(), userDetailCustom.getUserId())) {
+            throw new CustomException(MessageConstant.CAN_NOT_UPDATE_THIS_USER, HttpStatus.FORBIDDEN);
+        }
+
+        // Find target user
+        User user = userRepository.findByIdAndDeletedAtIsNull(request.getUserUpdateId()).orElseThrow(() -> new NoSuchElementException(MessageConstant.USER_NOT_FOUND));
+        user.setFullName(request.getFullName());
+        user.setEmail(request.getEmail());
+        user.setPhone(request.getPhone());
+
+        // Update roles (ADMIN only)
+        if (isAdmin && request.getRoles() != null) {
+            if (!EnumSet.allOf(RoleName.class).containsAll(request.getRoles())) {
+                throw new CustomException(MessageConstant.INVALID_ROLE, HttpStatus.BAD_REQUEST);
+            }
+            user.setRoles(new HashSet<>(request.getRoles()));
+        }
+
+        // Persist user changes
+        userRepository.save(user);
+
+        return ResponseEntity.ok().body(new DataResponse<>(200, MessageConstant.USER_UPDATE_SUCCESS, user));
+    }
+
     public String tokenKey(Integer userId, String deviceType) {
-        if (deviceType.equals(Constants.PC)){
+        if (deviceType.equals(Constants.PC)) {
             return Constants.TOKEN_VER_PC + userId;
-        }else{
+        } else {
             return Constants.TOKEN_VER_MOBILE + userId;
         }
     }

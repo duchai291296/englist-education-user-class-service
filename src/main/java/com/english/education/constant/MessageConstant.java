@@ -19,6 +19,7 @@ public class MessageConstant {
     public static final String INVALID_DEVICE_TYPE = "Invalid device type";
     public static final String ROLE_CANNOT_BE_NULL = "Role can not be null";
     public static final String ROLE_CANNOT_BE_EMPTY = "Role can not be empty";
+    public static final String INVALID_ROLE = "Invalid role";
     public static final String BACK_TO_LOGIN = "Back to login";
     public static final String INVALID_TOKEN_VER = "Invalid token ver";
 
@@ -33,6 +34,8 @@ public class MessageConstant {
     public static final String USER_ALREADY_UNLOCKED = "User already unlocked";
     public static final String USER_LOCKED_SUCCESS = "User locked success";
     public static final String USER_UNLOCKED_SUCCESS = "User unlocked success";
+    public static final String USER_UPDATE_SUCCESS = "User update success";
+    public static final String CAN_NOT_UPDATE_THIS_USER = "Can not update this user";
 
     // Token
     public static final String INVALID_REFRESH_TOKEN_FORMAT = "Invalid refresh token format";

@@ -4,13 +4,10 @@ import com.english.education.security.exception.AccessDenied;
 import com.english.education.security.exception.JwtEntryPoint;
 import com.english.education.security.jwt.JwtTokenFilter;
 import com.english.education.security.jwt.TraceIdFilter;
-import com.english.education.security.principle.UserDetailCustomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -31,7 +28,6 @@ import java.util.List;
 @EnableMethodSecurity(prePostEnabled = true)
 @RequiredArgsConstructor
 public class SecurityConfig {
-    private final UserDetailCustomService userDetailCustomService;
     private final AccessDenied accessDenied;
     private final JwtEntryPoint jwtEntryPoint;
     private final JwtTokenFilter jwtTokenFilter;
@@ -66,18 +62,9 @@ public class SecurityConfig {
 //                        .requestMatchers("/api/v1/moderator/**").hasAuthority(RoleName.ROLE_MODERATOR.name())
 //                        .requestMatchers("/api/v1/user/**").hasAuthority(RoleName.ROLE_USER.name())
                         .anyRequest().permitAll())
-                .authenticationProvider(authenticationProvider())
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(jwtEntryPoint).accessDeniedHandler(accessDenied))
                 .addFilterBefore(traceIdFilter, SecurityContextHolderFilter.class)
-                .addFilterAfter(jwtTokenFilter, TraceIdFilter.class)
+                .addFilterAfter(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
-    }
-
-    @Bean
-    public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setPasswordEncoder(passwordEncoder());
-        authProvider.setUserDetailsService(userDetailCustomService);
-        return authProvider;
     }
 }
