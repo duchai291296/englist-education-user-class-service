@@ -17,6 +17,7 @@ public class MessageConstant {
     public static final String FULL_NAME_CANNOT_BE_NULL = "Full name can not be null";
     public static final String DEVICE_TYPE_CANNOT_BE_NULL = "Device type can not be null";
     public static final String INVALID_DEVICE_TYPE = "Invalid device type";
+    public static final String INVALID_EMAIL = "Invalid email";
     public static final String ROLE_CANNOT_BE_NULL = "Role can not be null";
     public static final String ROLE_CANNOT_BE_EMPTY = "Role can not be empty";
     public static final String INVALID_ROLE = "Invalid role";
@@ -36,6 +37,18 @@ public class MessageConstant {
     public static final String USER_UNLOCKED_SUCCESS = "User unlocked success";
     public static final String USER_UPDATE_SUCCESS = "User update success";
     public static final String CAN_NOT_UPDATE_THIS_USER = "Can not update this user";
+    public static final String CONFIRM_PASSWORD_NOT_MATCH = "Confirm password not match";
+    public static final String CONFIRM_PASSWORD_CANNOT_BE_NULL = "Confirm password can not be null";
+    public static final String OLD_PASSWORD_CANNOT_BE_NULL = "Old password can not be null";
+    public static final String THE_OLD_PASSWORD_IS_INCORRECT = "The old password is incorrect";
+    public static final String CHANGE_PASSWORD_SUCCESS = "Change password success";
+    public static final String IS_DELETE_CANNOT_BE_NULL = "Is delete can not be null";
+    public static final String CHANGE_AVATAR_SUCCESS = "Change avatar success";
+    public static final String USER_ID_REQUIRED = "user id is required";
+    public static final String USER_ID_NOT_ALLOWED = "user id is not allowed to be null";
+    public static final String INVALID_AVATAR_ACTION = "Invalid avatar action";
+    public static final String CANNOT_DELETE_ADMIN = "Can not delete admin";
+    public static final String DELETE_USER_SUCCESS = "Delete user success";
 
     // Token
     public static final String INVALID_REFRESH_TOKEN_FORMAT = "Invalid refresh token format";

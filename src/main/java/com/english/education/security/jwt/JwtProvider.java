@@ -1,7 +1,6 @@
 package com.english.education.security.jwt;
 
 
-import com.english.education.exception.AuthenException;
 import com.english.education.model.enums.RoleName;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;

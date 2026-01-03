@@ -3,7 +3,7 @@ package com.english.education.model.service.refreshtoken;
 import com.english.education.annotation.LogAction;
 import com.english.education.constant.MessageConstant;
 import com.english.education.exception.CustomException;
-import com.english.education.model.dto.request.NewRefreshTokenRequest;
+import com.english.education.model.dto.request.auth.NewRefreshTokenRequest;
 import com.english.education.model.dto.response.JwtResponse;
 import com.english.education.model.entity.RefreshToken;
 import com.english.education.model.entity.User;

@@ -1,7 +1,9 @@
 package com.english.education.controller;
 
 import com.english.education.exception.CustomException;
-import com.english.education.model.dto.request.LockAndUnlockRequest;
+import com.english.education.model.dto.request.user.LockAndUnlockRequest;
+import com.english.education.model.dto.request.user.ChangeAvatarRequest;
+import com.english.education.model.dto.request.user.ChangePasswordRequest;
 import com.english.education.model.dto.request.user.UpdateUserRequest;
 import com.english.education.model.service.users.UserService;
 import com.english.education.security.principle.UserDetailCustom;
@@ -38,4 +40,20 @@ public class UserController {
     public ResponseEntity<?> updateUser(@Valid @RequestBody UpdateUserRequest updateUserRequest, @AuthenticationPrincipal UserDetailCustom userDetailCustom) throws CustomException {
         return userService.updateUser(updateUserRequest,userDetailCustom);
     }
+
+    @PutMapping("/changePassword")
+    public ResponseEntity<?> changePassword(@Valid @RequestBody ChangePasswordRequest changePasswordRequest, @AuthenticationPrincipal UserDetailCustom userDetailCustom) throws CustomException {
+        return userService.changePassword(changePasswordRequest,userDetailCustom);
+    }
+
+    @PutMapping("/changeAvatar")
+    public ResponseEntity<?> changeAvatar(@Valid @ModelAttribute ChangeAvatarRequest changeAvatarRequest, @AuthenticationPrincipal UserDetailCustom userDetailCustom) throws CustomException {
+        return userService.changeAvatar(changeAvatarRequest,userDetailCustom);
+    }
+
+    @DeleteMapping("/delete/{userId}")
+    public ResponseEntity<?> deleteUser(@PathVariable Integer userId) throws CustomException {
+        return userService.deleteUser(userId);
+    }
+
 }

@@ -1,6 +1,8 @@
 package com.english.education.model.service.common;
 
 import com.english.education.constant.Constants;
+import com.english.education.model.enums.RoleName;
+import com.english.education.security.principle.UserDetailCustom;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -62,5 +64,11 @@ public class CommonServiceImpl implements CommonService {
         }
 
         return original;
+    }
+
+    @Override
+    public boolean isAdmin(UserDetailCustom userDetailCustom) {
+        return userDetailCustom.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals(RoleName.ADMIN.name()));
     }
 }
