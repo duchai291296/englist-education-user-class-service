@@ -2,15 +2,14 @@ package com.english.education.model.service.auth;
 
 import com.english.education.constant.Constants;
 import com.english.education.constant.MessageConstant;
-import com.english.education.event.UserCreatedEvent;
-import com.english.education.exception.AuthenException;
+import com.english.education.exception.AuthedException;
 import com.english.education.exception.CustomException;
-import com.english.education.model.dto.request.LoginRequest;
+import com.english.education.model.dto.request.auth.LoginRequest;
 import com.english.education.model.dto.response.JwtResponse;
 import com.english.education.model.entity.UserSession;
 import com.english.education.model.enums.RoleName;
 import com.english.education.exception.DataExistException;
-import com.english.education.model.dto.request.RegisterRequest;
+import com.english.education.model.dto.request.auth.RegisterRequest;
 import com.english.education.model.entity.User;
 import com.english.education.model.enums.Status;
 import com.english.education.model.repository.user.UserRepository;
@@ -22,17 +21,13 @@ import com.english.education.security.jwt.JwtProvider;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -43,7 +38,6 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final JwtProvider jwtProvider;
     private final RefreshTokenService refreshTokenService;
-    private final ApplicationEventPublisher applicationEventPublisher;
     private final StringRedisTemplate stringRedisTemplate;
     private final CommonService commonService;
     private final UserSessionRepository userSessionRepository;
@@ -53,12 +47,29 @@ public class AuthServiceImpl implements AuthService {
      * Register a new user account.
      * <p>
      * Flow:
-     * 1. Validate username uniqueness
-     * 2. Persist user to database (transactional)
-     * 3. Publish UserCreatedEvent after successful commit
+     * <pre>
+     *   1. Validate username uniqueness
+     *   2. Build user entity with default STUDENT role
+     *   3. Persist user to database (transactional)
+     *   4. Upload avatar image to external storage (if provided)
+     *   5. Update user avatar reference after successful upload
+     * </pre>
+     * Transactional behavior:
+     * <pre>
+     * - User persistence is transactional
+     * - Database changes are rolled back on runtime exceptions
+     * - External storage operations are manually compensated on failure
+     * </pre>
+     * Validation:
+     * - Username must be unique
      * <p>
-     * Redis initialization is handled asynchronously
-     * via UserAuthCacheListener after transaction commit.
+     * Notes:
+     * <pre>
+     * - Newly registered users are created with ACTIVE status
+     * - Avatar upload is optional
+     * - The system uploads the avatar only after it successfully persists the user
+     * - External storage is not part of the database transaction
+     * </pre>
      *
      * @param registerRequest registration payload
      * @return success message
@@ -75,8 +86,8 @@ public class AuthServiceImpl implements AuthService {
             throw new DataExistException("Username already exists", "username");
         }
 
-        // Convert role names from request to RoleName enum
-        Set<RoleName> roleNames = toRoleNames(registerRequest.getRoles());
+        // Set role name is student
+        Set<RoleName> roleNames = EnumSet.of(RoleName.STUDENT);
 
         // Build user entity
         User user = User.builder()
@@ -107,17 +118,6 @@ public class AuthServiceImpl implements AuthService {
             throw e;
         }
 
-
-        // Publish event to initialize authentication cache.
-        // Listener will:
-        // - Wait until transaction commits
-        // - Then initialize Redis auth keys
-        //
-        // If transaction rolls back, the event will not be processed.
-        applicationEventPublisher.publishEvent(
-                new UserCreatedEvent(user.getId())
-        );
-
         return ResponseEntity.ok().body(MessageConstant.CREATE_ACCOUNT_SUCCESS);
     }
 
@@ -126,24 +126,27 @@ public class AuthServiceImpl implements AuthService {
      * Authenticate user and generate JWT tokens.
      * <p>
      * Flow:
+     * <pre>
      * 1. Verify username and password
      * 2. Atomically increment token version in Redis
      * 3. Generate access token and refresh token
-     * <p>
+     * </pre>
      * Important:
+     * <pre>
      * - Login updates Redis token version atomically
      * - Redis is the single source of truth for token version
      * - If Redis is unavailable, login fails fast
+     * </pre>
      *
      * @param loginRequest login payload
      * @return JWT response
-     * @throws AuthenException if authentication fails
+     * @throws AuthedException if authentication fails
      * @throws CustomException if verify fail
      * @author Duc Hai (17/12/2025)
      */
     @Override
     @Transactional
-    public ResponseEntity<?> login(LoginRequest loginRequest) throws AuthenException, CustomException {
+    public ResponseEntity<?> login(LoginRequest loginRequest) throws AuthedException, CustomException {
 
         // Verify username and password using DB
         User user = verify(loginRequest);
@@ -197,40 +200,20 @@ public class AuthServiceImpl implements AuthService {
                 .refreshToken(refreshToken)
                 .avatar(avatar)
                 .build();
-        log.info("Login Success");
+        log.info("Login Success with username: {}",user.getUsername() );
         return ResponseEntity.ok().body(jwtResponse);
-    }
-
-    /**
-     * Convert role strings to {@link RoleName} enum.
-     *
-     * @param roles role names from request
-     * @return set of RoleName
-     * @throws IllegalArgumentException if role is invalid
-     * @author Duc Hai (17/12/2025)
-     */
-    private Set<RoleName> toRoleNames(Set<String> roles) {
-        return roles.stream()
-                .map(String::trim)
-                .map(String::toUpperCase)
-                .map(role -> {
-                    try {
-                        return RoleName.valueOf(role);
-                    } catch (IllegalArgumentException e) {
-                        throw new IllegalArgumentException("Invalid role: " + role);
-                    }
-                })
-                .collect(Collectors.toSet());
     }
 
     /**
      * Verify user credentials.
      * <p>
      * Checks:
+     * <pre>
      * - Device type is valid
      * - User exists and not soft-deleted
      * - Password matches
      * - User is not locked
+     * </pre>
      *
      * @param loginRequest login payload
      * @return authenticated user entity
@@ -246,7 +229,7 @@ public class AuthServiceImpl implements AuthService {
 
         // Fetch user that is not soft-deleted
         User user = userRepository.findByUsernameAndDeletedAtIsNull(loginRequest.getUsername())
-                .orElseThrow(() -> new UsernameNotFoundException(MessageConstant.USER_NOT_FOUND));
+                .orElseThrow(() -> new NoSuchElementException(MessageConstant.USER_NOT_FOUND));
 
         // Validate password
         if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
@@ -264,6 +247,40 @@ public class AuthServiceImpl implements AuthService {
         return user;
     }
 
+    /**
+     * Logout user from a specific device.
+     * <p>
+     * Flow:
+     * <pre>
+     *   1. Revoke active refresh token for the given user and device
+     *   2. Increment token version in database to invalidate existing access tokens
+     *   3. Remove token version cache from Redis (best effort)
+     * </pre>
+     *
+     * Transactional behavior:
+     * <pre>
+     *   - Refresh token revocation and token version increment are transactional
+     *   - Database is the source of truth for token validity
+     * </pre>
+     *
+     * Cache handling:
+     * <pre>
+     *   - Redis cache deletion is non-blocking
+     *   - Logout succeeds even if Redis is unavailable
+     *   - Cache will be healed on next authenticated request if needed
+     * </pre>
+     *
+     * Security guarantees:
+     * <pre>
+     *   - All existing access tokens for the device become invalid immediately
+     *   - Refresh token cannot be reused after logout
+     * </pre>
+     *
+     * @param deviceType device type (PC or MOBILE)
+     * @param userId     authenticated user identifier
+     * @return logout success response
+     * @author Duc Hai
+     */
     @Transactional
     @Override
     public ResponseEntity<?> logout(String deviceType, Integer userId) {

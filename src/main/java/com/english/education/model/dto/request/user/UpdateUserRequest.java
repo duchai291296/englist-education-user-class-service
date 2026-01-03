@@ -2,6 +2,7 @@ package com.english.education.model.dto.request.user;
 
 import com.english.education.constant.MessageConstant;
 import com.english.education.model.enums.RoleName;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -16,11 +17,17 @@ import java.util.Set;
 @Getter
 @Setter
 public class UpdateUserRequest {
+
     @NotNull(message = MessageConstant.USER_ID_CANNOT_BE_NULL)
     private Integer userUpdateId;
+
     @NotBlank(message = MessageConstant.FULL_NAME_CANNOT_BE_NULL)
     private String fullName;
+
+    @Email(message = MessageConstant.INVALID_EMAIL)
     private String email;
+
     private String phone;
+
     private Set<RoleName> roles;
 }

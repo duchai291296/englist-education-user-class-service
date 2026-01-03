@@ -1,8 +1,11 @@
 package com.english.education.advice;
 
+import com.english.education.exception.AuthedException;
+import com.english.education.exception.CustomException;
 import com.english.education.exception.DataExistException;
 import com.english.education.model.dto.response.DataError;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -10,6 +13,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 @RestControllerAdvice
 public class ApplicationHandler {
@@ -28,5 +32,35 @@ public class ApplicationHandler {
         errors.put(ex.getField(), ex.getMessage());
         return new DataError<>(errors,HttpStatus.BAD_REQUEST,HttpStatus.BAD_REQUEST.value());
 
+    }
+
+    @ExceptionHandler(CustomException.class)
+    public ResponseEntity<DataError<String>> handleCustomException(CustomException ex) {
+        return ResponseEntity
+                .status(ex.getStatus())
+                .body(new DataError<>(
+                        ex.getMessage(),
+                        ex.getStatus(),
+                        ex.getStatus().value()
+                ));
+    }
+
+    @ExceptionHandler(NoSuchElementException.class)
+    public ResponseEntity<DataError<String>> handleNoSuchElementException(NoSuchElementException ex) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(new DataError<>(
+                        ex.getMessage(),
+                        HttpStatus.NOT_FOUND,
+                        HttpStatus.NOT_FOUND.value()
+                ));
+    }
+
+    @ExceptionHandler(AuthedException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public DataError<Map<String,String>> handleErrorDataExist(AuthedException ex) {
+        Map<String, String> errors = new HashMap<>();
+        errors.put(ex.getField(), ex.getMessage());
+        return new DataError<>(errors,HttpStatus.BAD_REQUEST,HttpStatus.BAD_REQUEST.value());
     }
 }

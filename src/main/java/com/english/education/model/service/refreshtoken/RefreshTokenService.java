@@ -1,7 +1,7 @@
 package com.english.education.model.service.refreshtoken;
 
 import com.english.education.exception.CustomException;
-import com.english.education.model.dto.request.NewRefreshTokenRequest;
+import com.english.education.model.dto.request.auth.NewRefreshTokenRequest;
 import com.english.education.model.entity.User;
 import org.springframework.http.ResponseEntity;
 

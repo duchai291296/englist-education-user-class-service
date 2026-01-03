@@ -1,4 +1,4 @@
-package com.english.education.model.dto.request;
+package com.english.education.model.dto.request.auth;
 
 import com.english.education.constant.MessageConstant;
 import jakarta.validation.constraints.NotNull;

@@ -1,7 +1,7 @@
 package com.english.education.model.service.authstate;
 
 import com.english.education.constant.MessageConstant;
-import com.english.education.exception.AuthenException;
+import com.english.education.exception.AuthedException;
 import com.english.education.model.dto.response.ValidRequestResponse;
 import com.english.education.model.enums.Status;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -38,7 +38,7 @@ public class AuthStateServiceImpl implements AuthStateService {
      *   the circuit breaker triggers the fallback method.
      *
      * @param validRequestResponse dto have info of redis
-     * @throws AuthenException if auth state is invalid or user is locked or cannot connect to redis
+     * @throws AuthedException if auth state is invalid or user is locked or cannot connect to redis
      * @author Duc Hai (17/12/2025)
      */
     @CircuitBreaker(
@@ -46,7 +46,7 @@ public class AuthStateServiceImpl implements AuthStateService {
             fallbackMethod = "redisAuthFallback"
     )
     @Override
-    public void validateAuthState(ValidRequestResponse validRequestResponse) throws AuthenException {
+    public void validateAuthState(ValidRequestResponse validRequestResponse) throws AuthedException {
         ValueOperations<String, String> ops = stringRedisTemplate.opsForValue();
         try {
             String tokenVerValue = ops.get(validRequestResponse.getTokenVerKey());
@@ -57,7 +57,7 @@ public class AuthStateServiceImpl implements AuthStateService {
             // Redis cache not ready or just restarted
             if (tokenVer == null || locked == null) {
                 log.warn("Auth cache missing for userId={}", validRequestResponse.getUserId());
-                throw new AuthenException(
+                throw new AuthedException(
                         MessageConstant.AUTH_TRY_AGAIN_LATER,
                         "system"
                 );
@@ -65,14 +65,14 @@ public class AuthStateServiceImpl implements AuthStateService {
 
             // User has been locked by admin
             if (Status.INACTIVE.name().equals(locked)) {
-                throw new AuthenException(
+                throw new AuthedException(
                         MessageConstant.USER_IS_LOCKED,
                         "username"
                 );
             }
 
             if(!tokenVer.equals(validRequestResponse.getTokenVer())){
-                throw new AuthenException(
+                throw new AuthedException(
                         MessageConstant.BACK_TO_LOGIN,
                         "system"
                 );
@@ -81,7 +81,7 @@ public class AuthStateServiceImpl implements AuthStateService {
             log.debug("Auth cache valid for userId={} tokenVer={}", validRequestResponse.getUserId(), tokenVer);
         } catch (RedisConnectionFailureException e) {
             log.error("Redis UNREACHABLE - cannot connect", e);
-            throw new AuthenException(
+            throw new AuthedException(
                     MessageConstant.SYSTEM_TEMPORARILY_UNAVAILABLE,
                     "system"
             );
@@ -99,20 +99,20 @@ public class AuthStateServiceImpl implements AuthStateService {
      * Logging helps monitor circuit breaker activation.
      *
      * @param ex          Throwable that triggered fallback
-     * @throws AuthenException indicating system temporarily unavailable
+     * @throws AuthedException indicating system temporarily unavailable
      */
     @SuppressWarnings("unused")
     private void redisAuthFallback(
             ValidRequestResponse validRequestResponse,
             Throwable ex
-    ) throws AuthenException {
+    ) throws AuthedException {
         log.error(
                 "Circuit Breaker OPEN for Redis (userId={})",
                 validRequestResponse.getUserId(),
                 ex
         );
 
-        throw new AuthenException(
+        throw new AuthedException(
                 MessageConstant.SYSTEM_TEMPORARILY_UNAVAILABLE,
                 "system"
         );
@@ -129,14 +129,14 @@ public class AuthStateServiceImpl implements AuthStateService {
      *
      * @param value token version string from Redis
      * @return parsed token version or {@code null}
-     * @throws AuthenException if value is not a valid number
+     * @throws AuthedException if value is not a valid number
      * @author Duc Hai (17/12/2025)
      */
     private Long parseLongOrThrow(String value) {
         try {
             return value != null ? Long.valueOf(value) : null;
         } catch (NumberFormatException e) {
-            throw new AuthenException(
+            throw new AuthedException(
                     MessageConstant.INVALID_TOKEN_VER,
                     "system"
             );

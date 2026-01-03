@@ -1,10 +1,12 @@
 package com.english.education.security.jwt;
 
 import com.english.education.constant.MessageConstant;
-import com.english.education.exception.AuthenException;
+import com.english.education.exception.AuthedException;
 import com.english.education.model.entity.UserSession;
+import com.english.education.model.enums.Status;
 import com.english.education.model.repository.usersession.UserSessionRepository;
 import com.english.education.model.service.common.CommonServiceImpl;
+import com.english.education.security.exception.JwtEntryPoint;
 import com.english.education.security.principle.UserDetailCustom;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -32,42 +34,58 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class JwtTokenFilter extends OncePerRequestFilter {
+    private static final String AUTHORIZATION_HEADER = "Authorization";
+    private static final String BEARER_PREFIX = "Bearer ";
+    private static final String USER_ID = "userId";
+    private static final String DEVICE = "device";
+    private static final String USER_ROLE = "userRole";
+    private static final String TOKEN = "token";
+    private static final String TOKEN_VER = "tokenVer";
+
     private final JwtProvider jwtProvider;
     private final StringRedisTemplate stringRedisTemplate;
     private final CommonServiceImpl commonServiceImpl;
     private final UserSessionRepository userSessionRepository;
+    private final JwtEntryPoint jwtEntryPoint;
 
     /**
      * JWT authentication filter responsible for validating access tokens
      * and establishing the Spring Security authentication context.
      * <p>
      * Flow:
-     * 1. Extract JWT token from HTTP request
+     * 1. Extract JWT token from HTTP request Authorization header
      * 2. Validate token signature and expiration
      * 3. Parse JWT claims
      * 4. Validate authentication state against Redis and database
      * 5. Build authenticated principal and set it into SecurityContext
      * 6. Bind userId to MDC for request-scoped log enrichment
+     * 7. Continue filter chain execution
      * <p>
      * Validation checks:
      * - Token must be present and structurally valid
      * - Token must not be expired or tampered
-     * - Authentication state must be consistent (token version & user status)
-     * - User must not be locked or revoked
+     * - Token version must be consistent between JWT, Redis, and database
+     * - User session must be ACTIVE (not locked or revoked)
      * <p>
-     * Guarantees:
-     * - SecurityContext is populated only once per request
-     * - Authentication is established only for valid and active users
-     * - userId is available in MDC for downstream logging
+     * Exception handling:
+     * - Any authentication failure throws AuthedException
+     * - SecurityContext is explicitly cleared to prevent authentication leakage
+     * - JwtEntryPoint is invoked to return a 401 Unauthorized response
+     * - Filter chain execution is NOT continued after authentication failure
+     * <p>
+     * Security guarantees:
+     * - SecurityContext is populated only for fully validated requests
+     * - Authentication is never reused across requests when validation fails
+     * - Thread-local SecurityContext is always cleared on authentication errors
      * <p>
      * MDC lifecycle:
      * - userId is bound to the current request thread after successful authentication
-     * - userId is removed in finally block to prevent leakage across reused threads
+     * - userId is removed in finally block to prevent MDC leakage when threads are reused
      * <p>
      * Notes:
-     * - This filter must run after TraceIdFilter to ensure logs contain traceId
+     * - This filter is safe for multithreaded servlet environments
+     * - SecurityContextHolder.clearContext() is mandatory due to ThreadLocal reuse
      * - MDC cleanup is scoped only to userId (no global MDC.clear)
-     * - Safe for multi-threaded servlet environments
      *
      * @param request  incoming HTTP request
      * @param response HTTP response
@@ -86,12 +104,12 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
                 validateAuthState(claims);
 
-                Integer userId = claims.get("userId", Integer.class);
-                String deviceType = claims.get("device", String.class);
+                Integer userId = claims.get(USER_ID , Integer.class);
+                String deviceType = claims.get(DEVICE, String.class);
 
                 // JWT claims are deserialized as raw List -> safe cast
                 @SuppressWarnings("unchecked")
-                List<String> roles = claims.get("userRole", List.class);
+                List<String> roles = claims.get(USER_ROLE, List.class);
 
                 List<GrantedAuthority> authorities = roles.stream()
                         .map(role -> (GrantedAuthority) new SimpleGrantedAuthority(role))
@@ -107,12 +125,17 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 Authentication authentication = new UsernamePasswordAuthenticationToken(principal, null, authorities);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                MDC.put("userId", String.valueOf(userId));
+                MDC.put(USER_ID, String.valueOf(userId));
             }
             filterChain.doFilter(request, response);
-        } finally {
+        } catch (AuthedException e) {
+            SecurityContextHolder.clearContext();
+            jwtEntryPoint.commence(request, response, e);
+        }
+
+        finally {
             // Prevent MDC leakage when servlet thread is reused
-            MDC.remove("userId");
+            MDC.remove(USER_ID);
         }
     }
 
@@ -132,8 +155,8 @@ public class JwtTokenFilter extends OncePerRequestFilter {
      * @author Duc Hai (21/12/2025)
      */
     public String getTokenFromRequest(HttpServletRequest request) {
-        String bearerToken = request.getHeader("Authorization");
-        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+        String bearerToken = request.getHeader(AUTHORIZATION_HEADER);
+        if (bearerToken != null && bearerToken.startsWith(BEARER_PREFIX)) {
             return bearerToken.substring(7).trim();
         }
         return null;
@@ -159,15 +182,15 @@ public class JwtTokenFilter extends OncePerRequestFilter {
      * - Authentication state is consistent between JWT and Redis
      *
      * @param claims JWT claims extracted from token
-     * @throws AuthenException if claims are missing, token version mismatch, or user is locked
+     * @throws AuthedException if claims are missing, token version mismatch, or user is locked
      * @author Duc Hai (21/12/2025)
      */
     private void validateAuthState(Claims claims){
-        Integer userId = claims.get("userId", Integer.class);
-        String deviceType = claims.get("device", String.class);
-        Long tokenVer = claims.get("tokenVer", Long.class);
+        Integer userId = claims.get(USER_ID, Integer.class);
+        String deviceType = claims.get(DEVICE, String.class);
+        Long tokenVer = claims.get(TOKEN_VER, Long.class);
         if (userId == null || deviceType == null || tokenVer == null) {
-            throw new AuthenException(MessageConstant.INVALID_ACCESS_TOKEN, "token");
+            throw new AuthedException(MessageConstant.INVALID_ACCESS_TOKEN, TOKEN);
         }
 
         String redisKey = commonServiceImpl.getTokenVerDevice(deviceType, userId);
@@ -176,7 +199,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
         if (redisVer != null ){
             if(redisVer > tokenVer){
-                throw new AuthenException(MessageConstant.INVALID_ACCESS_TOKEN, "token");
+                throw new AuthedException(MessageConstant.INVALID_ACCESS_TOKEN, TOKEN);
             }
 
             if (redisVer.equals(tokenVer)){
@@ -198,13 +221,17 @@ public class JwtTokenFilter extends OncePerRequestFilter {
         UserSession session = userSessionRepository
                 .findByUserIdAndDeviceType(userId, deviceType)
                 .orElseThrow(() ->
-                        new AuthenException(MessageConstant.INVALID_ACCESS_TOKEN, "token")
+                        new AuthedException(MessageConstant.INVALID_ACCESS_TOKEN, TOKEN)
                 );
+
+        if (session.getStatus() != Status.ACTIVE) {
+            throw new AuthedException(MessageConstant.USER_IS_LOCKED, TOKEN);
+        }
 
         Long dbVer = session.getTokenVersion();
 
         if (!dbVer.equals(jwtTokenVer)) {
-            throw new AuthenException(MessageConstant.INVALID_ACCESS_TOKEN, "token");
+            throw new AuthedException(MessageConstant.INVALID_ACCESS_TOKEN, TOKEN);
         }
 
         // Heal Redis (best effort)
