@@ -4,12 +4,14 @@ import com.english.education.exception.AuthedException;
 import com.english.education.exception.CustomException;
 import com.english.education.exception.DataExistException;
 import com.english.education.model.dto.response.DataError;
+import com.english.education.model.enums.Status;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -63,4 +65,30 @@ public class ApplicationHandler {
         errors.put(ex.getField(), ex.getMessage());
         return new DataError<>(errors,HttpStatus.BAD_REQUEST,HttpStatus.BAD_REQUEST.value());
     }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<DataError<String>> handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException ex) {
+
+        Class<?> requiredType = ex.getRequiredType();
+        if (requiredType == Status.class) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new DataError<>(
+                        "Invalid status value",
+                        HttpStatus.BAD_REQUEST,
+                        HttpStatus.BAD_REQUEST.value()
+                ));
+        }
+
+        if ("roles".equals(ex.getName())) {
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new DataError<>(
+                    "Invalid role value",
+                    HttpStatus.BAD_REQUEST,
+                    HttpStatus.BAD_REQUEST.value()
+            ));
+        }
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new DataError<>("Invalid request parameter", HttpStatus.BAD_REQUEST, HttpStatus.BAD_REQUEST.value()));
+    }
+
+
 }
