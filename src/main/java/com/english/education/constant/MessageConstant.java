@@ -64,7 +64,8 @@ public class MessageConstant {
     public static final String IMAGE_INVALID_FORMAT = "Invalid image format. Only image files are allowed";
     public static final String IMAGE_FILE_TOO_LARGE = "Image file is too large. Maximum size is 10MB";
     public static final String IMAGE_UPLOAD_FAILED = "Failed to upload image";
-    public static final String IMAGE_PUBLIC_ID_REQUIRED = "Image public ID is required";
-    public static final String IMAGE_DELETE_SUCCESS = "Image deleted successfully";
-    public static final String IMAGE_DELETE_FAILED = "Failed to delete image";
+
+    // PARAM
+    public static final String INVALID_SORT_FIELD = "Invalid sort field";
+    public static final String INVALID_SORT_DIRECTION = "Invalid sort direction";
 }

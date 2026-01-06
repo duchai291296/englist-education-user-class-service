@@ -9,11 +9,13 @@ import com.english.education.model.dto.request.user.ChangePasswordRequest;
 import com.english.education.model.dto.request.user.UpdateUserRequest;
 import com.english.education.model.dto.response.DataResponse;
 import com.english.education.model.dto.response.user.UserDetailResponse;
+import com.english.education.model.dto.response.user.UserListProjection;
 import com.english.education.model.entity.User;
 import com.english.education.model.enums.RoleName;
 import com.english.education.model.enums.Status;
 import com.english.education.model.repository.refreshtoken.RefreshTokenRepository;
 import com.english.education.model.repository.user.UserRepository;
+import com.english.education.model.repository.user.UserRepositoryCustom;
 import com.english.education.model.repository.usersession.UserSessionRepository;
 import com.english.education.model.service.cloudinary.CloudinaryService;
 import com.english.education.model.service.common.CommonService;
@@ -21,13 +23,14 @@ import com.english.education.security.principle.UserDetailCustom;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -43,6 +46,20 @@ public class UserServiceImpl implements UserService {
     private final CloudinaryService cloudinaryService;
     private final CommonService commonService;
     private final PasswordEncoder passwordEncoder;
+    private final UserRepositoryCustom userRepositoryCustom;
+
+    @Override
+    public ResponseEntity<?> listUser(Pageable pageable, String search, String status, Set<RoleName> roles) throws CustomException {
+        String searchParam = null;
+        if (search != null && !search.isBlank()) {
+            String escaped = escapeLike(search.trim());
+            searchParam = "%" + escaped + "%";
+        }
+
+        Page<UserListProjection> getAllUserDTO = userRepositoryCustom.searchAll(searchParam, status,roles,pageable);
+
+        return ResponseEntity.ok().body(new DataResponse<>(200,null,getAllUserDTO));
+    }
 
     @Override
     public User findById(Integer id) {
@@ -185,7 +202,7 @@ public class UserServiceImpl implements UserService {
             log.warn("Failed to clear Redis cache on unlock userId={}", userId, e);
         }
 
-        return ResponseEntity.ok().body(MessageConstant.USER_UNLOCKED_SUCCESS);
+        return ResponseEntity.ok().body(new DataResponse<>(200, MessageConstant.USER_UNLOCKED_SUCCESS,null));
     }
 
     /**
@@ -593,5 +610,12 @@ public class UserServiceImpl implements UserService {
         } else {
             return Constants.TOKEN_VER_MOBILE + userId;
         }
+    }
+
+    private String escapeLike(String input) {
+        return input
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
     }
 }
