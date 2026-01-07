@@ -5,6 +5,7 @@ import lombok.Getter;
 
 @AllArgsConstructor
 @Getter
+@SuppressWarnings("ClassCanBeRecord")
 public class UserListProjection {
     private final Integer id;
     private final String username;

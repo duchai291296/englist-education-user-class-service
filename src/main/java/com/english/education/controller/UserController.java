@@ -7,6 +7,7 @@ import com.english.education.model.dto.request.user.ChangeAvatarRequest;
 import com.english.education.model.dto.request.user.ChangePasswordRequest;
 import com.english.education.model.dto.request.user.UpdateUserRequest;
 import com.english.education.model.enums.RoleName;
+import com.english.education.model.enums.Status;
 import com.english.education.model.service.users.UserService;
 import com.english.education.security.principle.UserDetailCustom;
 import jakarta.validation.Valid;
@@ -35,7 +36,7 @@ public class UserController {
     @GetMapping("/list")
     public ResponseEntity<?> listAllUsers(@PageableDefault(page = 0, size = 20) Pageable pageable,
                                           @RequestParam(required = false) String search,
-                                          @RequestParam(required = false) String status,
+                                          @RequestParam(required = false) Status status,
                                           @RequestParam(required = false) Set<RoleName> roles,
                                           @RequestParam(defaultValue = "id") String sortField,
                                           @RequestParam(defaultValue = "ASC") String sortDirection) throws CustomException {

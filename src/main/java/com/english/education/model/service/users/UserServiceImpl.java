@@ -10,6 +10,7 @@ import com.english.education.model.dto.request.user.UpdateUserRequest;
 import com.english.education.model.dto.response.DataResponse;
 import com.english.education.model.dto.response.user.UserDetailResponse;
 import com.english.education.model.dto.response.user.UserListProjection;
+import com.english.education.model.dto.response.user.UserListResponse;
 import com.english.education.model.entity.User;
 import com.english.education.model.enums.RoleName;
 import com.english.education.model.enums.Status;
@@ -48,16 +49,55 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final UserRepositoryCustom userRepositoryCustom;
 
+    /**
+     * Retrieve paginated user list with optional filters.
+     * <p>
+     * Supported request parameters:
+     * <pre>
+     * - search: optional keyword for fuzzy search
+     * - status: optional user status filter
+     * - roles: optional role filter
+     * </pre>
+     * Request processing:
+     * <pre>
+     * - Trims and escapes search keyword to safely use with SQL LIKE
+     * - Wraps search keyword with '%' to enable fuzzy search
+     * - Delegates filtering, sorting and pagination logic to repository layer
+     * </pre>
+     * Response:
+     * <pre>
+     * - Returns paginated user data wrapped in a standard API response
+     * </pre>
+     *
+     * @param pageable pagination and sorting information
+     * @param search optional search keyword
+     * @param status optional user status filter
+     * @param roles optional role filter
+     * @return paginated list of users wrapped in DataResponse
+     * @throws CustomException if an error occurs during user search
+     * @author Duc Hai
+     * @since 07/01/2026
+     */
     @Override
-    public ResponseEntity<?> listUser(Pageable pageable, String search, String status, Set<RoleName> roles) throws CustomException {
+    public ResponseEntity<?> listUser(Pageable pageable, String search, Status status, Set<RoleName> roles) throws CustomException {
+        // Initialize search parameter for SQL LIKE condition
+        // Will remain null if no search keyword is provided
         String searchParam = null;
+
+        // Validate and preprocess search keyword
+        // - Trim leading/trailing spaces
+        // - Escape special characters used in SQL LIKE
+        // - Wrap with '%' to enable fuzzy search
         if (search != null && !search.isBlank()) {
             String escaped = escapeLike(search.trim());
             searchParam = "%" + escaped + "%";
         }
 
-        Page<UserListProjection> getAllUserDTO = userRepositoryCustom.searchAll(searchParam, status,roles,pageable);
+        // Call custom repository to execute paginated user search
+        // Applies filters, sorting and pagination internally
+        Page<UserListResponse> getAllUserDTO = userRepositoryCustom.searchAll(searchParam, status,roles,pageable);
 
+        // Return successful response wrapped in standard DataResponse format
         return ResponseEntity.ok().body(new DataResponse<>(200,null,getAllUserDTO));
     }
 
@@ -70,30 +110,36 @@ public class UserServiceImpl implements UserService {
      * Lock a user account by setting status to INACTIVE.
      * <p>
      * Flow:
+     * <pre>
      * 1. Find user by ID (excluding soft-deleted users)
      * 2. Check if user is already locked (idempotent)
      * 3. Set user status to INACTIVE
      * 4. Increment token version for all user sessions (PC and MOBILE) to invalidate existing tokens
      * 5. Revoke all active refresh tokens for the user
      * 6. Clear Redis token version cache
-     * <p>
+     * </pre>
      * Transactional behavior:
+     * <pre>
      * - All operations are executed within a single transaction
      * - If any step fails, the entire operation is rolled back
      * - User status, token version increment, and token revocation are atomic
-     * <p>
+     * </pre>
      * Token invalidation:
+     * <pre>
      * - Incrementing token version in DB invalidates all existing access tokens
      * - Redis cache is cleared to force validation against DB
      * - Ensures locked users cannot use existing tokens even if Redis is unavailable
-     * <p>
+     * </pre>
      * Idempotent:
+     * <pre>
      * - If user is already locked, returns success message without side effects
+     * </pre>
      *
      * @param userId user ID to lock
      * @return success message or "already locked" message
      * @throws NoSuchElementException if user not found or user is soft-deleted
-     * @author Duc Hai (22/12/2025)
+     * @author Duc Hai
+     * @since 22/12/2025
      */
     @Transactional
     @Override
@@ -141,31 +187,37 @@ public class UserServiceImpl implements UserService {
      * Unlock a user account by setting status to ACTIVE.
      * <p>
      * Flow:
+     * <pre>
      * 1. Find user by ID (excluding soft-deleted users)
      * 2. Set user status to ACTIVE
      * 3. Update all user session statuses to ACTIVE (PC and MOBILE)
      * 4. Clear Redis token version cache
-     * <p>
+     * </pre>
      * Transactional behavior:
+     * <pre>
      * - All operations are executed within a single transaction
      * - If any step fails, the entire operation is rolled back
      * - User status and session status updates are atomic
-     * <p>
+     * </pre>
      * Token invalidation:
+     * <pre>
      * - Token version is NOT incremented (intentionally)
      * - Existing tokens remain INVALID even after unlock
      * - User must log in again to obtain new valid tokens
      * - This ensures security: tokens issued before lock cannot be reused
-     * <p>
+     * </pre>
      * Redis cache:
+     * <pre>
      * - Cache is cleared to avoid stale data
      * - New token version will be set in Redis when user logs in again
      * - Best-effort operation: failure does not block the unlock operation
+     * </pre>
      *
      * @param userId user ID to unlock
      * @return success message
      * @throws NoSuchElementException if user not found or user is soft-deleted
-     * @author Duc Hai (22/12/2025)
+     * @author Duc Hai
+     * @since 22/12/2025
      */
     @Transactional
     @Override
@@ -209,20 +261,25 @@ public class UserServiceImpl implements UserService {
      * Get user detail by user ID.
      * <p>
      * Flow:
+     * <pre>
      * 1. Find user by ID (excluding soft-deleted users)
      * 2. Return user entity as response
-     * <p>
+     * </pre>
      * Behavior:
+     * <pre>
      * - Only returns users that are not soft-deleted
      * - Throws exception if user does not exist
-     * <p>
+     * </pre>
      * Security:
+     * <pre>
      * - Authorization is assumed to be handled at controller / filter level
      * - This method does NOT perform permission checks
-     * <p>
+     * </pre>
      * Notes:
+     * <pre>
      * - Sensitive fields should be protected using @JsonIgnore / @JsonIgnoreProperties
      * - Returned entity must be safe for exposure
+     * </pre>
      *
      * @param userId user ID to retrieve
      * @return user detail
@@ -248,6 +305,7 @@ public class UserServiceImpl implements UserService {
      * Update user information.
      * <p>
      * Flow:
+     * <pre>
      * 1. Determine whether current user is ADMIN
      * 2. Verify update permission:
      * - ADMIN can update any user
@@ -258,25 +316,30 @@ public class UserServiceImpl implements UserService {
      * - Validate roles
      * - Update user roles
      * 6. Persist user changes
-     * <p>
+     * </pre>
      * Transactional behavior:
+     * <pre>
      * - User data update is transactional
      * - Database changes are rolled back on exception
-     * <p>
+     * </pre>
      * Security:
+     * <pre>
      * - Non-admin users are forbidden from updating other users
      * - Only ADMIN users can update roles
      * - This method rejects invalid role values
-     * <p>
+     * </pre>
      * Validation:
+     * <pre>
      * - Role list must contain only valid RoleName enum values
+     * </pre>
      *
      * @param request          update user request payload
      * @param userDetailCustom authenticated user details
      * @return updated user information
      * @throws CustomException        if permission denied or invalid role
      * @throws NoSuchElementException if user not found or soft-deleted
-     * @author Duc Hai (3/1/2026)
+     * @author Duc Hai
+     * @since 03/01/2026
      */
     @Transactional
     @Override
@@ -314,6 +377,7 @@ public class UserServiceImpl implements UserService {
      * Change user password.
      * <p>
      * Flow:
+     * <pre>
      * 1. Determine whether current user is ADMIN
      * 2. Resolve target user ID:
      *    - ADMIN can change password of any user (userId is required)
@@ -322,25 +386,30 @@ public class UserServiceImpl implements UserService {
      * 4. Validate password change rules
      * 5. Encode and update new password
      * 6. Persist password changes
-     * <p>
+     * </pre>
      * Transactional behavior:
+     * <pre>
      * - Password update is executed within a database transaction
      * - Database changes are rolled back on runtime exceptions
-     * <p>
+     * </pre>
      * Security:
+     * <pre>
      * - Non-admin users are forbidden from changing other users' passwords
      * - ADMIN users are allowed to change passwords without providing old password
-     * <p>
+     * </pre>
      * Validation:
+     * <pre>
      * - New password and confirm password must match
      * - Non-admin users must provide correct old password
+     * </pre>
      *
      * @param request          change password request payload
      * @param userDetailCustom authenticated user details
      * @return response indicating password change success
      * @throws CustomException        if validation fails or permission is denied
      * @throws NoSuchElementException if target user does not exist or is soft-deleted
-     * @author Duc Hai (3/1/2026)
+     * @author Duc Hai
+     * @since 03/01/2026
      */
     @Transactional
     @Override
@@ -372,6 +441,7 @@ public class UserServiceImpl implements UserService {
      * Change or delete user avatar.
      * <p>
      * Flow:
+     * <pre>
      * 1. Determine whether current user is ADMIN
      * 2. Resolve target user ID:
      *    - ADMIN can update avatar of any user
@@ -382,24 +452,29 @@ public class UserServiceImpl implements UserService {
      * 5. Handle avatar update:
      *    - If delete flag is set, remove avatar reference and delete image
      *    - If upload is requested, upload new avatar and update reference
-     * <p>
+     * </pre>
      * Transactional behavior:
+     * <pre>
      * - User avatar reference update is transactional
      * - Database changes are rolled back on runtime exceptions
-     * <p>
+     * </pre>
      * External IO:
+     * <pre>
      * - Avatar upload and deletion are performed via Cloudinary
      * - The service manually compensates external storage operations on failure
-     * <p>
+     * </pre>
      * Security:
+     * <pre>
      * - Non-admin users are forbidden from updating other users' avatars
+     * </pre>
      *
      * @param request          change avatar request payload
      * @param userDetailCustom authenticated user details
      * @return response indicating avatar change success
      * @throws CustomException        if validation fails or permission is denied
      * @throws NoSuchElementException if target user does not exist or is soft-deleted
-     * @author Duc Hai (3/1/2026)
+     * @author Duc Hai
+     * @since 03/01/2026
      */
     @Transactional
     @Override

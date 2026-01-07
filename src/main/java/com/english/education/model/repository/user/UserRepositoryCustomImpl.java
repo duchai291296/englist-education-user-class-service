@@ -4,7 +4,10 @@ import com.english.education.constant.MessageConstant;
 import com.english.education.constant.query.user.UserQuery;
 import com.english.education.exception.CustomException;
 import com.english.education.model.dto.response.user.UserListProjection;
+import com.english.education.model.dto.response.user.UserListResponse;
 import com.english.education.model.enums.RoleName;
+import com.english.education.model.enums.Status;
+import com.english.education.model.service.cloudinary.CloudinaryService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import lombok.RequiredArgsConstructor;
@@ -32,46 +35,64 @@ public class UserRepositoryCustomImpl implements UserRepositoryCustom {
     );
 
     private final EntityManager em;
+    private final CloudinaryService cloudinaryService;
 
     /**
      * Search and paginate users with optional filters and dynamic sorting.
      * <p>
      * Supported filters:
-     * - search: fuzzy search on username, full name, email, phone
-     * - status: filter by user status
+     * <pre>
+     * - search: fuzzy search on username, full name, email and phone
+     * - status: filter users by status
      * - roles: filter users having at least one of the given roles
-     * <p>
+     * </pre>
      * Query strategy:
-     * - Uses native SQL for better control over joins, grouping and performance
+     * <pre>
+     * - Uses native SQL to gain full control over joins, grouping and performance
      * - Builds data query and count query separately
-     * - Ensures both queries always share the same WHERE conditions
-     * <p>
+     * - Ensures both queries always share identical WHERE conditions
+     * </pre>
      * Pagination:
+     * <pre>
      * - Offset and limit are applied only to the data query
      * - Count query returns total number of distinct users
-     * <p>
+     * </pre>
      * Sorting:
+     * <pre>
      * - Sorting is applied dynamically based on Pageable
      * - Only whitelisted fields are allowed (validated in buildOrderBy)
-     * - Prevents SQL injection via sort field
-     * <p>
+     * - Prevents SQL injection through sort field validation
+     * </pre>
      * Grouping:
+     * <pre>
      * - GROUP BY u.id is required to avoid duplicated users
-     *   when joining with user_role table
-     * <p>
+     *   when joining with the user_role table
+     *   </pre>
+     * Data transformation:
+     * <pre>
+     * - Avatar publicId is converted to a full Cloudinary URL
+     *   before returning the response to the frontend
+     * </pre>
      * Error handling:
+     * <pre>
      * - Throws CustomException if an invalid sort field is provided
+     * </pre>
      *
-     * @param search   optional keyword for fuzzy search
-     * @param status   optional user status filter
-     * @param roles    optional role filter (IN condition)
+     * @param search optional keyword for fuzzy search
+     * @param statusEnum optional user status filter
+     * @param roles optional role filter (IN condition)
      * @param pageable pagination and sorting information
      * @return paginated list of users with total count
      * @throws CustomException if sort field is invalid
-     * @author Duc Hai (07/01/2026)
+     * @author Duc Hai
+     * @since 07/01/2026
      */
     @Override
-    public Page<UserListProjection> searchAll(String search, String status, Set<RoleName> roles, Pageable pageable) throws CustomException {
+    public Page<UserListResponse> searchAll(String search, Status statusEnum, Set<RoleName> roles, Pageable pageable) throws CustomException {
+
+        // Convert Status enum to string value for native SQL comparison
+        // If statusEnum is null, the status filter will be ignored
+        String status = statusEnum != null ? statusEnum.name() : null;
 
         // Base SELECT query (data)
         StringBuilder dataSql = new StringBuilder(UserQuery.GET_ALL_USER);
@@ -149,13 +170,30 @@ public class UserRepositoryCustomImpl implements UserRepositoryCustom {
         dataQuery.setFirstResult((int) pageable.getOffset());
         dataQuery.setMaxResults(pageable.getPageSize());
 
+        // Execute data query and retrieve raw projection results
         @SuppressWarnings("unchecked")
         List<UserListProjection> data = dataQuery.getResultList();
+
+        // Transform projection results into response DTOs
+        // Avatar publicId is converted to Cloudinary URL if present
+        List<UserListResponse> result = data
+                .stream()
+                .map(u -> new UserListResponse(
+                        u.getId(),
+                        u.getUsername(),
+                        u.getFullName(),
+                        u.getEmail(),
+                        u.getPhone(),
+                        u.getAvatar() != null ? cloudinaryService.getPublicImageUrl(u.getAvatar()) : null,
+                        u.getStatus(),
+                        u.getRoles()
+                ))
+                .toList();
 
         // Total number of distinct users
         long total = ((Number) countQuery.getSingleResult()).longValue();
 
-        return new PageImpl<>(data, pageable, total);
+        return new PageImpl<>(result, pageable, total);
 
     }
 
@@ -163,16 +201,20 @@ public class UserRepositoryCustomImpl implements UserRepositoryCustom {
      * Build ORDER BY clause based on Pageable sorting.
      * <p>
      * Security considerations:
+     * <pre>
      * - Only allows sorting by predefined, whitelisted fields
      * - Prevents SQL injection via dynamic ORDER BY
-     * <p>
+     * </pre>
      * Default behavior:
+     * <pre>
      * - If no sorting is provided, order by u.id ASC
+     * </pre>
      *
      * @param sort Spring Data Sort object
      * @return SQL ORDER BY clause
      * @throws CustomException if sort field is not allowed
-     * @author Duc Hai (07/01/2026)
+     * @author Duc Hai
+     * @since 07/01/2026
      */
     private String buildOrderBy(Sort sort) throws CustomException {
 
