@@ -2,6 +2,7 @@ package com.english.education.model.entity;
 
 import com.english.education.model.enums.RoleName;
 import com.english.education.model.enums.Status;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -14,6 +15,7 @@ import java.util.Set;
 @Getter
 @Setter
 @Builder
+@Table(name = "users")
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -22,6 +24,7 @@ public class User {
     @Column(name = "username")
     private String username;
 
+    @JsonIgnore
     @Column(name = "password")
     private String password;
 
@@ -37,6 +40,9 @@ public class User {
     @Column(name = "status")
     @Enumerated(EnumType.STRING)
     private Status status;
+
+    @Column(name = "avatar")
+    private String avatar;
 
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(
